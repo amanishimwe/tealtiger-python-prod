@@ -1,6 +1,6 @@
-# Contributing to AgentGuard Python SDK
+# Contributing to TealTiger Python SDK
 
-Thank you for considering contributing to AgentGuard Python SDK!
+Thank you for considering contributing to TealTiger Python SDK!
 
 ## 🚀 Getting Started
 
@@ -14,8 +14,8 @@ Thank you for considering contributing to AgentGuard Python SDK!
 
 1. **Fork and clone the repository**
    ```bash
-   git clone https://github.com/YOUR_USERNAME/agentguard-python.git
-   cd agentguard-python
+   git clone https://github.com/YOUR_USERNAME/tealtiger-python-prod.git
+   cd tealtiger-python-prod
    ```
 
 2. **Create a virtual environment**
@@ -76,7 +76,7 @@ mypy src
 pytest
 
 # Run tests with coverage
-pytest --cov=agentguard --cov-report=html
+pytest --cov=tealtiger --cov-report=html
 ```
 
 ### 4. Commit Your Changes
@@ -119,12 +119,12 @@ Example test structure:
 
 ```python
 import pytest
-from agentguard import AgentGuard
+from tealtiger import TealTiger
 
 
 def test_client_initialization():
     """Test that client initializes correctly."""
-    guard = AgentGuard(
+    guard = TealTiger(
         api_key="test-key",
         ssa_url="http://localhost:3000"
     )
@@ -136,7 +136,7 @@ def test_client_initialization():
 @pytest.mark.asyncio
 async def test_async_execution():
     """Test async tool execution."""
-    guard = AgentGuard(
+    guard = TealTiger(
         api_key="test-key",
         ssa_url="http://localhost:3000"
     )
@@ -155,7 +155,7 @@ pytest
 pytest tests/test_client.py
 
 # Run with coverage
-pytest --cov=agentguard --cov-report=html
+pytest --cov=tealtiger --cov-report=html
 
 # Run with verbose output
 pytest -v
@@ -188,10 +188,10 @@ def execute_tool(
         ExecutionResult containing data and security decision
     
     Raises:
-        AgentGuardError: If validation or execution fails
+        TealTigerError: If validation or execution fails
     
     Example:
-        >>> guard = AgentGuard(api_key="key", ssa_url="http://localhost:3000")
+        >>> guard = TealTiger(api_key="key", ssa_url="http://localhost:3000")
         >>> result = guard.execute_tool_sync(
         ...     "web-search",
         ...     {"query": "AI security"},
@@ -313,20 +313,22 @@ Report violations to: agentguard@proton.me
 ## 🏆 Recognition
 
 Contributors will be:
-- Listed in our [Contributors](https://github.com/agentguard-ai/agentguard-python/graphs/contributors) page
+- Listed in our [Contributors](https://github.com/agentguard-ai/tealtiger-python-prod/graphs/contributors) page
 - Mentioned in release notes for significant contributions
 - Invited to our contributors community
 
 ## 📞 Getting Help
 
-- **Questions?** Open a [Discussion](https://github.com/agentguard-ai/agentguard-python/discussions)
-- **Bug?** Open an [Issue](https://github.com/agentguard-ai/agentguard-python/issues)
+- **Questions?** Open a [Discussion](https://github.com/orgs/agentguard-ai/discussions)
+
+- **Bug?** Open an [Issue](https://github.com/agentguard-ai/tealtiger/issues)
+
 - **Security?** Email agentguard@proton.me
 
 ## 📄 License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
 
 ---
 
-Thank you for contributing to AgentGuard Python SDK! 🎉
+Thank you for contributing to TealTiger Python SDK! 🎉
