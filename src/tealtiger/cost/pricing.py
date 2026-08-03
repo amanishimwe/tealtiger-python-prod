@@ -325,6 +325,22 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         output_cost_per_1k=0.006,
         last_updated="2026-03-06",
     ),
+    # Adding Codestral latest
+    "codestral-latest": ModelPricing(
+        model="codestral-latest",
+        provider="mistral",
+        input_cost_per_1k=0.0003,
+        output_cost_per_1k=0.0009,
+        last_updated="2026-08-03",
+    ),
+    # Adding Open Mistral Nemo
+    "open-mistral-nemo": ModelPricing(
+        model="open-mistral-nemo",
+        provider="mistral",
+        input_cost_per_1k=0.00015,
+        output_cost_per_1k=0.00015,
+        last_updated="2026-08-03",
+    ),
 }
 
 
@@ -408,6 +424,5 @@ def get_supported_providers() -> List[ModelProvider]:
     Returns:
         List of provider names
     """
-    # providers = set(p.provider for p in MODEL_PRICING.values())
-    providers = {p.provider for p in MODEL_PRICING.values()}
+    providers = set(p.provider for p in MODEL_PRICING.values())
     return list(providers)
