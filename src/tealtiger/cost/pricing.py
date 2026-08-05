@@ -1,6 +1,7 @@
 """
 Model Pricing Data: Up-to-date pricing information for major AI model providers
 Last updated: August 2026
+URL for Mistral pricing: https://mistral.ai/pricing/api/
 """
 
 from typing import Dict, List, Optional
