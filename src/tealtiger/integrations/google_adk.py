@@ -17,7 +17,7 @@ Usage:
     )
 
     agent = Agent(
-        model="gemini-2.0-flash",
+        model="gemini-3.6-flash",
         tools=[search_tool, code_tool],
         before_tool_callback=governance.before_tool,
         after_tool_callback=governance.after_tool,
@@ -58,6 +58,8 @@ class TealTigerCallback:
         mode: "OBSERVE", "MONITOR", or "ENFORCE".
         agent_id: Agent identifier for audit correlation.
         on_decision: Optional callback invoked with each governance decision.
+        model: Gemini 3.6 flash is default model.
+        cost_per_tool_call: Fallback USD cost when pricing/tokens is not available for the model.
     """
 
     def __init__(
@@ -66,11 +68,15 @@ class TealTigerCallback:
         mode: str = "OBSERVE",
         agent_id: str = None,
         on_decision=None,
+        model: str = "gemini-3.6-flash",
+        cost_per_tool_call: float = 0.0015,
     ):
         self.policies = policies or []
         self.mode = mode.upper()
         self.agent_id = agent_id or f"adk-agent-{str(uuid.uuid4())[:8]}"
         self.on_decision = on_decision
+        self.model = model
+        self.cost_per_tool_call = cost_per_tool_call
         self._decisions: List[Dict[str, Any]] = []
         self._cumulative_cost: float = 0.0
         self._frozen: bool = False
@@ -157,6 +163,10 @@ class TealTigerCallback:
                         break
 
         eval_time = (time.perf_counter() - start_time) * 1000
+        # Track cost for allowed actions
+        cost = self.cost_per_tool_call if action == "ALLOW" else 0.0
+        if action == "ALLOW":
+            self._cumulative_cost += cost
 
         # Record decision
         decision = {
@@ -169,7 +179,7 @@ class TealTigerCallback:
             "reason_codes": reason_codes or (["POLICY_ALLOW"] if action == "ALLOW" else []),
             "risk_score": risk_score,
             "evaluation_time_ms": eval_time,
-            "cost_tracked": 0.002 if action == "ALLOW" else 0.0,
+            "cost_tracked": cost,
             "cumulative_cost": self._cumulative_cost,
         }
         self._decisions.append(decision)
@@ -177,10 +187,7 @@ class TealTigerCallback:
         if self.on_decision:
             self.on_decision(decision)
 
-        # Track cost for allowed actions
-        if action == "ALLOW":
-            self._cumulative_cost += 0.002
-
+    
         # Mode-based behavior
         if self.mode == "ENFORCE" and action == "DENY":
             # Return a dict to block execution (ADK pattern)

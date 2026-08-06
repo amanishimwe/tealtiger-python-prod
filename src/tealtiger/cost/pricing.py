@@ -107,6 +107,7 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         last_updated="2026-01-31",
     ),
     # Google PaLM/Gemini Models
+    # Google PaLM/Gemini Models from: https://ai.google.dev/gemini-api/docs/pricing?hl=en
     "gemini-pro": ModelPricing(
         model="gemini-pro",
         provider="google",
@@ -142,6 +143,34 @@ MODEL_PRICING: Dict[str, ModelPricing] = {
         input_cost_per_1k=0.0005,
         output_cost_per_1k=0.0005,
         last_updated="2026-01-31",
+    ),
+    "gemini-2.5-flash": ModelPricing(
+        model="gemini-2.5-flash",
+        provider="google",
+        input_cost_per_1k=0.0003,
+        output_cost_per_1k=0.0025,
+        last_updated="2026-03-06",
+    ),
+    "gemini-2.5-pro": ModelPricing(
+        model="gemini-2.5-pro",
+        provider="google",
+        input_cost_per_1k=0.00125,
+        output_cost_per_1k=0.01,
+        last_updated="2026-03-06",
+    ),
+    "gemini-3.5-flash": ModelPricing(
+        model="gemini-3.5-flash",
+        provider="google",
+        input_cost_per_1k=0.0015,
+        output_cost_per_1k=0.009,
+        last_updated="2026-03-06",
+    ),
+    "gemini-3.6-flash": ModelPricing(
+        model="gemini-3.6-flash",
+        provider="google",
+        input_cost_per_1k=0.0015,
+        output_cost_per_1k=0.0075,
+        last_updated="2026-03-06",
     ),
     # Cohere Models
     "command": ModelPricing(

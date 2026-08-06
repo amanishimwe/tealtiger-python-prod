@@ -2,6 +2,7 @@
 
 from tealtiger.integrations.langfuse import LangfuseGovernanceExporter
 from tealtiger.integrations.agentops import AgentOpsGovernanceReporter
+from tealtiger.integrations.google_adk import TealTigerCallback
 from tealtiger.integrations.opik import (
     GovernanceAccuracyMetric,
     PIIDetectionMetric,
@@ -18,4 +19,5 @@ __all__ = [
     "FalsePositiveRateMetric",
     "GovernanceLatencyMetric",
     "GovernanceMultiMetric",
+    "TealTigerCallback",
 ]
