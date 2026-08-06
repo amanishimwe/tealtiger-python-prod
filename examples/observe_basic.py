@@ -1,6 +1,7 @@
 """Basic observe() demo for TealTiger.
-Uses a mock OpenAI client so you can run this without an API key.
-Shows cost tracking and the freeze()/unfreeze() kill switch.
+
+Uses mock OpenAI, Anthropic, Gemini, and Mistral clients so you can run
+this without an API key. Shows cost tracking and freeze()/unfreeze().
 """
 
 from tealtiger.observe import FrozenAgentError, freeze, observe, unfreeze
@@ -105,6 +106,76 @@ class MockAnthropicResponse:
         self.stop_reason = "end_turn"
 
 
+# ======================================================================
+# for Gemini
+# ======================================================================
+
+
+class MockGeminiUsageMetadata:
+    """Mock Gemini usage_metadata (prompt/candidates token counts)."""
+
+    def __init__(
+        self,
+        prompt_token_count=12,
+        candidates_token_count=18,
+        total_token_count=30,
+    ):
+        self.prompt_token_count = prompt_token_count
+        self.candidates_token_count = candidates_token_count
+        self.total_token_count = total_token_count
+
+
+class MockGeminiResponse:
+    """Mock Gemini generate_content response."""
+
+    def __init__(self, text="Hello from mock Gemini!"):
+        self.text = text
+        self.usage_metadata = MockGeminiUsageMetadata()
+
+
+class MockGemini:
+    """Mock Gemini client matching detection heuristics (generate_content)."""
+
+    def __init__(self):
+        self.base_url = ""
+
+    def generate_content(self, **kwargs):
+        return MockGeminiResponse()
+
+
+# ======================================================================
+# for Mistral
+# ======================================================================
+
+
+class MockMistralUsage:
+    """Mock Mistral usage (OpenAI-compatible token fields)."""
+
+    def __init__(self, prompt_tokens=11, completion_tokens=22, total_tokens=33):
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+        self.total_tokens = total_tokens
+
+
+class MockMistralResponse:
+    """Mock Mistral chat response."""
+
+    def __init__(self, content="Hello from mock Mistral!"):
+        self.model = "mistral-large-latest"
+        self.usage = MockMistralUsage()
+        self.choices = [MockChoice(MockMessage(content=content))]
+
+
+class MockMistral:
+    """Mock Mistral client: class name must contain 'mistral'; chat callable."""
+
+    def __init__(self):
+        self.base_url = "https://api.mistral.ai/v1"
+
+    def chat(self, **kwargs):
+        return MockMistralResponse()
+
+
 def demo_openai():
     # Wrap the client — drop-in proxy; call it like a normal OpenAI client
     print("=== OpenAI observe() demo ===\n")
@@ -153,6 +224,52 @@ def demo_anthropic():
     print(response.content)
 
 
+def demo_gemini():
+    print("\n=== Gemini observe() demo ===\n")
+    client = observe(MockGemini(), agent_id="demo-gemini-agent")
+    response = client.generate_content(
+        model="gemini-2.0-flash",
+        contents="Hello!",
+    )
+    print(response.text)
+    print(client.get_cost())
+    freeze("demo-gemini-agent")
+    try:
+        client.generate_content(model="gemini-2.0-flash", contents="")
+    except FrozenAgentError as e:
+        print("blocked:", e)
+    unfreeze("demo-gemini-agent")
+    response = client.generate_content(
+        model="gemini-2.0-flash",
+        contents="Back online",
+    )
+    print(response.text)
+
+
+def demo_mistral():
+    print("\n=== Mistral observe() demo ===\n")
+    client = observe(MockMistral(), agent_id="demo-mistral-agent")
+    response = client.chat(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Hello!"}],
+    )
+    print(response.choices[0].message.content)
+    print(client.get_cost())
+    freeze("demo-mistral-agent")
+    try:
+        client.chat(model="mistral-large-latest", messages=[])
+    except FrozenAgentError as e:
+        print("blocked:", e)
+    unfreeze("demo-mistral-agent")
+    response = client.chat(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Back online"}],
+    )
+    print(response.choices[0].message.content)
+
+
 if __name__ == "__main__":
     demo_openai()
     demo_anthropic()
+    demo_gemini()
+    demo_mistral()
