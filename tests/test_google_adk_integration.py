@@ -4,7 +4,7 @@ from tealtiger.integrations.google_adk import TealTigerCallback
 def test_allow_tracks_cost():
     g = TealTigerCallback(cost_per_tool_call=0.01, mode="ENFORCE")
     result = g.before_tool(None, "search",{})
-    assert result is not None
+    assert result is None
     assert g.total_cost == 0.01
     assert g.decisions[0]["action"] == "ALLOW"
     assert g.decisions[0]["cumulative_cost"] == 0.01
