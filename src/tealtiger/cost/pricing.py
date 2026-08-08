@@ -454,5 +454,5 @@ def get_supported_providers() -> List[ModelProvider]:
     Returns:
         List of provider names
     """
-    providers = set(p.provider for p in MODEL_PRICING.values())
+    providers = {p.provider for p in MODEL_PRICING.values()}
     return list(providers)

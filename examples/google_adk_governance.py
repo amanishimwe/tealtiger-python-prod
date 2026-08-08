@@ -47,5 +47,7 @@ def main():
     print("total_cost:", governance.total_cost)
     print("decisions:", len(governance.decisions))
     print("denies:", governance.deny_count)
+
+
 if __name__ == "__main__":
     main()

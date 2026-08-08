@@ -27,9 +27,10 @@ Usage:
 from __future__ import annotations
 
 import re
-import uuid
 import time
+import uuid
 from typing import Any, Dict, List
+
 from tealtiger.cost.pricing import get_model_pricing
 
 # PII patterns
@@ -89,15 +90,15 @@ class TealTigerCallback:
         pricing = get_model_pricing(self.model, provider="google")
         if pricing is None:
             return self.cost_per_tool_call
-        
+
         estimated_input_tokens = 500
         estimated_output_tokens = 500
 
-        input_cost = (estimated_input_tokens/1000) * pricing.input_cost_per_1k
-        output_cost = (estimated_output_tokens/1000) * pricing.output_cost_per_1k
+        input_cost = (estimated_input_tokens / 1000) * pricing.input_cost_per_1k
+        output_cost = (estimated_output_tokens / 1000) * pricing.output_cost_per_1k
         return input_cost + output_cost
 
-    def before_tool(self, callback_context, tool, args, tool_context=None):
+    def before_tool(self, callback_context, tool, args, tool_context=None):  # noqa: C901
         """Before-tool callback for Google ADK.
 
         Evaluates governance policies before tool execution.
@@ -203,7 +204,6 @@ class TealTigerCallback:
         if self.on_decision:
             self.on_decision(decision)
 
-    
         # Mode-based behavior
         if self.mode == "ENFORCE" and action == "DENY":
             # Return a dict to block execution (ADK pattern)
