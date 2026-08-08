@@ -37,7 +37,6 @@ def main():
     )
     print("block result:", result)
     print("\n=== 4) freeze / unfreeze ===")
-    print("\n=== 4) freeze / unfreeze ===")
     governance.freeze()
     result = governance.before_tool(None, "search", {"query": "x"})
     print("frozen block:", result)  # dict — blocked while frozen

@@ -30,6 +30,7 @@ import re
 import uuid
 import time
 from typing import Any, Dict, List
+from tealtiger.cost.pricing import get_model_pricing
 
 # PII patterns
 _PII_PATTERNS = {
@@ -80,6 +81,21 @@ class TealTigerCallback:
         self._decisions: List[Dict[str, Any]] = []
         self._cumulative_cost: float = 0.0
         self._frozen: bool = False
+
+    def _estimate_tool_cost(self) -> float:
+        """Estimate USD cost for one allowed tool call.
+        Used model pricing if available; otherwise cost_per_tool_call.
+        """
+        pricing = get_model_pricing(self.model, provider="google")
+        if pricing is None:
+            return self.cost_per_tool_call
+        
+        estimated_input_tokens = 500
+        estimated_output_tokens = 500
+
+        input_cost = (estimated_input_tokens/1000) * pricing.input_cost_per_1k
+        output_cost = (estimated_output_tokens/1000) * pricing.output_cost_per_1k
+        return input_cost + output_cost
 
     def before_tool(self, callback_context, tool, args, tool_context=None):
         """Before-tool callback for Google ADK.
@@ -164,7 +180,7 @@ class TealTigerCallback:
 
         eval_time = (time.perf_counter() - start_time) * 1000
         # Track cost for allowed actions
-        cost = self.cost_per_tool_call if action == "ALLOW" else 0.0
+        cost = self._estimate_tool_cost() if action == "ALLOW" else 0.0
         if action == "ALLOW":
             self._cumulative_cost += cost
 

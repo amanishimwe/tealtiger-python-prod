@@ -1,13 +1,25 @@
 import pytest
 from tealtiger.integrations.google_adk import TealTigerCallback
 
-def test_allow_tracks_cost():
-    g = TealTigerCallback(cost_per_tool_call=0.01, mode="ENFORCE")
-    result = g.before_tool(None, "search",{})
+def test_allow_tracks_cost_fallback():
+    """Fake model -> uses cost_per_tool_call (0.01)."""
+    g = TealTigerCallback(
+        model="not-a-real-model-xyz",
+        cost_per_tool_call=0.01,
+        mode="ENFORCE",
+    )
+    result = g.before_tool(None, "search", {})
     assert result is None
-    assert g.total_cost == 0.01
+    assert g.total_cost == pytest.approx(0.01)
     assert g.decisions[0]["action"] == "ALLOW"
-    assert g.decisions[0]["cumulative_cost"] == 0.01
+    assert g.decisions[0]["cumulative_cost"] == pytest.approx(0.01)
+
+def test_allow_uses_model_pricing():
+    """# Priced model -> (500/1000)*0.0015 + (500/1000)*0.0075 = 0.0045."""
+    g = TealTigerCallback(model="gemini-3.6-flash", mode="ENFORCE")
+    result = g.before_tool(None, "search", {})
+    assert result is None
+    assert g.total_cost == pytest.approx(0.0045)
 
 def test_allowlist_deny_blocks_in_enforce_mode():
     g = TealTigerCallback(
