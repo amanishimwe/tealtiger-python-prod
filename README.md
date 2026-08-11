@@ -146,7 +146,7 @@ print(f"Passed: {result.passed}")
 print(f"Risk Score: {result.risk_score}")
 ```
 
-**Detects:** PII (emails, phones, SSNs, credit cards), prompt injection, jailbreaks, harmful content, custom patterns.
+**Detects:** PII (emails, phones, SSNs, credit cards, IBANs, passport numbers), prompt injection, jailbreaks, harmful content, custom patterns.
 
 ### TealCircuit — Circuit Breaker
 
