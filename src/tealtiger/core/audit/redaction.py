@@ -80,8 +80,13 @@ PII_PATTERNS = {
     "ipAddress": re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
     # API keys and tokens (common patterns)
     "apiKey": re.compile(r"\b[A-Za-z0-9_-]{32,}\b"),
+    # IBAN (2-letter country + 2 check digits + grouped alphanumeric, GB/DE/FR/NL min coverage)
+    "iban": re.compile(
+        r"\b[A-Z]{2}\d{2}(?:[\s]?[A-Za-z0-9]{4}){1,6}(?:[\s]?[A-Za-z0-9]{1,4})?\b"
+    ),
+    # Passport numbers (US: letter+8 digits; India: 9 digits — overlaps bare 9-digit numbers)
+    "passport": re.compile(r"\b(?:[A-Z]\d{8}|\d{9})\b"),
 }
-
 
 def compute_sha256_hash(content: str) -> str:
     """
