@@ -29,9 +29,12 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from tealtiger.cost.pricing import get_model_pricing
+
+# action, reason_codes, risk_score
+_EvalState = Tuple[str, List[str], int]
 
 # PII patterns
 _PII_PATTERNS = {
@@ -107,7 +110,81 @@ class TealTigerCallback:
         output_cost = (estimated_output_tokens / 1000) * pricing.output_cost_per_1k
         return input_cost + output_cost
 
-    def before_tool(self, callback_context, tool, args, tool_context=None):  # noqa: C901
+    def _check_freeze(self, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if self._frozen:
+            return "DENY", reason_codes + ["AGENT_FROZEN"], 100
+        return action, reason_codes, risk_score
+
+    def _check_tool_allowlist(self, tool_name: str, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        for policy in self.policies:
+            if policy.get("type") != "tool_allowlist":
+                continue
+            allowed = policy.get("allowed", [])
+            if not any(
+                tool_name == p or (p.endswith("*") and tool_name.startswith(p[:-1]))
+                for p in allowed
+            ):
+                return "DENY", reason_codes + ["TOOL_NOT_ALLOWED"], max(risk_score, 80)
+        return action, reason_codes, risk_score
+
+    def _check_pii(self, args: Any, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        args_text = str(args)
+        for policy in self.policies:
+            if policy.get("type") != "pii_block":
+                continue
+            categories = policy.get("categories", list(_PII_PATTERNS.keys()))
+            denied = False
+            for cat in categories:
+                pattern = _PII_PATTERNS.get(cat)
+                if pattern and pattern.search(args_text):
+                    action = "DENY"
+                    reason_codes = reason_codes + [f"PII_DETECTED:{cat}"]
+                    risk_score = max(risk_score, 90)
+                    denied = True
+            if denied:
+                break
+        return action, reason_codes, risk_score
+
+    def _check_secrets(self, args: Any, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        args_text = str(args)
+        for policy in self.policies:
+            if policy.get("type") != "secret_detection":
+                continue
+            if any(p.search(args_text) for p in _SECRET_PATTERNS):
+                return "DENY", reason_codes + ["SECRET_DETECTED"], max(risk_score, 95)
+        return action, reason_codes, risk_score
+
+    def _check_cost_limit(self, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        for policy in self.policies:
+            if policy.get("type") != "cost_limit":
+                continue
+            limit = policy.get("max_per_session", float("inf"))
+            if self._cumulative_cost >= limit:
+                return "DENY", reason_codes + ["BUDGET_EXCEEDED"], max(risk_score, 70)
+        return action, reason_codes, risk_score
+
+    def _evaluate_policies(self, tool_name: str, args: Any) -> _EvalState:
+        state: _EvalState = ("ALLOW", [], 0)
+        state = self._check_freeze(state)
+        state = self._check_tool_allowlist(tool_name, state)
+        state = self._check_pii(args, state)
+        state = self._check_secrets(args, state)
+        return self._check_cost_limit(state)
+
+    def before_tool(self, callback_context, tool, args, tool_context=None):
         """Before-tool callback for Google ADK.
 
         Evaluates governance policies before tool execution.
@@ -126,67 +203,7 @@ class TealTigerCallback:
         tool_name = getattr(tool, "name", str(tool)) if not isinstance(tool, str) else tool
         correlation_id = str(uuid.uuid4())
 
-        # Evaluate policies
-        action = "ALLOW"
-        reason_codes = []
-        risk_score = 0
-
-        # Check freeze
-        if self._frozen:
-            action = "DENY"
-            reason_codes.append("AGENT_FROZEN")
-            risk_score = 100
-
-        # Tool allowlist
-        if action == "ALLOW":
-            for policy in self.policies:
-                if policy.get("type") == "tool_allowlist":
-                    allowed = policy.get("allowed", [])
-                    if not any(
-                        tool_name == p or (p.endswith("*") and tool_name.startswith(p[:-1]))
-                        for p in allowed
-                    ):
-                        action = "DENY"
-                        reason_codes.append("TOOL_NOT_ALLOWED")
-                        risk_score = max(risk_score, 80)
-                        break
-
-        # PII detection
-        if action == "ALLOW":
-            args_text = str(args)
-            for policy in self.policies:
-                if policy.get("type") == "pii_block":
-                    categories = policy.get("categories", list(_PII_PATTERNS.keys()))
-                    for cat in categories:
-                        pattern = _PII_PATTERNS.get(cat)
-                        if pattern and pattern.search(args_text):
-                            action = "DENY"
-                            reason_codes.append(f"PII_DETECTED:{cat}")
-                            risk_score = max(risk_score, 90)
-                    if action == "DENY":
-                        break
-
-        # Secret detection
-        if action == "ALLOW":
-            args_text = str(args)
-            for policy in self.policies:
-                if policy.get("type") == "secret_detection":
-                    if any(p.search(args_text) for p in _SECRET_PATTERNS):
-                        action = "DENY"
-                        reason_codes.append("SECRET_DETECTED")
-                        risk_score = max(risk_score, 95)
-                        break
-
-        # Cost limit
-        if action == "ALLOW":
-            for policy in self.policies:
-                if policy.get("type") == "cost_limit":
-                    limit = policy.get("max_per_session", float("inf"))
-                    if self._cumulative_cost >= limit:
-                        action = "DENY"
-                        reason_codes.append("BUDGET_EXCEEDED")
-                        risk_score = max(risk_score, 70)
-                        break
+        action, reason_codes, risk_score = self._evaluate_policies(tool_name, args)
 
         eval_time = (time.perf_counter() - start_time) * 1000
         # Track cost for allowed actions
