@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from tealtiger.cost.pricing import get_model_pricing
 
@@ -83,7 +83,15 @@ class TealTigerCallback:
         self._cumulative_cost: float = 0.0
         self._frozen: bool = False
 
-    def _estimate_tool_cost(self) -> float:
+    @staticmethod
+    def _approx_tokens(payload: Any) -> int:
+        """Rough token estimate (~4 chars per token)."""
+        # TODO: use actual token counts when ADK exposes them
+        return max(1, len(str(payload)) // 4)
+
+    def _estimate_tool_cost(
+        self, args: Optional[Any] = None, result: Optional[Any] = None
+    ) -> float:
         """Estimate USD cost for one allowed tool call.
         Used model pricing if available; otherwise cost_per_tool_call.
         """
@@ -91,8 +99,9 @@ class TealTigerCallback:
         if pricing is None:
             return self.cost_per_tool_call
 
-        estimated_input_tokens = 500
-        estimated_output_tokens = 500
+        # args available in before_tool; result only after_tool — keep 500 fallback
+        estimated_input_tokens = self._approx_tokens(args) if args is not None else 500
+        estimated_output_tokens = self._approx_tokens(result) if result is not None else 500
 
         input_cost = (estimated_input_tokens / 1000) * pricing.input_cost_per_1k
         output_cost = (estimated_output_tokens / 1000) * pricing.output_cost_per_1k
@@ -181,7 +190,7 @@ class TealTigerCallback:
 
         eval_time = (time.perf_counter() - start_time) * 1000
         # Track cost for allowed actions
-        cost = self._estimate_tool_cost() if action == "ALLOW" else 0.0
+        cost = self._estimate_tool_cost(args=args, result=None) if action == "ALLOW" else 0.0
         if action == "ALLOW":
             self._cumulative_cost += cost
 

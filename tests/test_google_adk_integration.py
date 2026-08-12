@@ -18,11 +18,13 @@ def test_allow_tracks_cost_fallback():
 
 
 def test_allow_uses_model_pricing():
-    """# Priced model -> (500/1000)*0.0015 + (500/1000)*0.0075 = 0.0045."""
+    """Priced model: args={} -> 1 input token; result unknown -> 500 output.
+    (1/1000)*0.0015 + (500/1000)*0.0075 = 0.0037515.
+    """
     g = TealTigerCallback(model="gemini-3.6-flash", mode="ENFORCE")
     result = g.before_tool(None, "search", {})
     assert result is None
-    assert g.total_cost == pytest.approx(0.0045)
+    assert g.total_cost == pytest.approx(0.0037515)
 
 
 def test_allowlist_deny_blocks_in_enforce_mode():
