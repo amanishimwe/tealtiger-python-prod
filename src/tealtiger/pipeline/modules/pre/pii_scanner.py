@@ -87,6 +87,16 @@ DEFAULT_PII_PATTERNS: List[PIIPattern] = [
         regex=r"\b(?:\d{4}[-.\s]?){3}\d{4}\b",
         confidence=0.9,
     ),
+    PIIPattern(
+        name="iban",
+        regex=r"[A-Z]{2}\d{2}(?:[\s]?[A-Za-z0-9]{4}){1,6}(?:[\s]?[A-Za-z0-9]{1,4})?",
+        confidence=0.9,
+    ),
+    PIIPattern(
+        name="passport",
+        regex=r"(?:[A-Z]\d{8}|\d{9})",
+        confidence=0.7,
+    ),
 ]
 
 

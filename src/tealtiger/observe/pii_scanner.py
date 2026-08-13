@@ -27,8 +27,11 @@ _PII_PATTERNS: Dict[str, re.Pattern[str]] = {
     "phone": re.compile(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b"),
     "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
     "credit_card": re.compile(r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b"),
+    "iban": re.compile(
+        r"\b[A-Z]{2}\d{2}(?:[\s]?[A-Za-z0-9]{4}){1,6}(?:[\s]?[A-Za-z0-9]{1,4})?\b"
+    ),
+    "passport": re.compile(r"\b(?:[A-Z]\d{8}|\d{9})\b"),
 }
-
 
 def _extract_text(payload: Any) -> Optional[str]:
     """

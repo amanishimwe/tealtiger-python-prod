@@ -4,18 +4,18 @@ Property-based tests for TealTiger observe() module.
 Uses hypothesis to validate universal correctness properties.
 """
 import sys
+
 sys.path.insert(0, r"c:\Users\satis\OneDrive\AI Agent Security Platform\packages\tealtiger-python\src")
 
 import pytest
-from hypothesis import given, settings, assume
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tealtiger.observe.freeze_registry import FreezeRegistry, freeze, unfreeze
 from tealtiger.observe.behavioral_baseline import BehavioralBaseline
-from tealtiger.observe.types import BaselineSample
 from tealtiger.observe.cost_accumulator import CostAccumulator
+from tealtiger.observe.freeze_registry import FreezeRegistry
 from tealtiger.observe.pii_scanner import ObservePIIScanner
-
+from tealtiger.observe.types import BaselineSample
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -368,7 +368,7 @@ class TestPIINonInterference:
             assert result.phase == phase
             # Never exposes actual PII values — only types and counts
             for pii_type in result.types:
-                assert pii_type in ("email", "phone", "ssn", "credit_card")
+                assert pii_type in ("email", "phone", "ssn", "credit_card", "iban", "passport")
 
     @settings(max_examples=100)
     @given(

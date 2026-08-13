@@ -37,8 +37,11 @@ _PII_PATTERNS = {
     "credit_card": re.compile(r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"),
     "email": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
     "phone": re.compile(r"\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
+    "iban": re.compile(
+        r"\b[A-Z]{2}\d{2}(?:[\s]?[A-Za-z0-9]{4}){1,6}(?:[\s]?[A-Za-z0-9]{1,4})?\b"
+    ),
+    "passport": re.compile(r"\b(?:[A-Z]\d{8}|\d{9})\b"),
 }
-
 # Secret patterns
 _SECRET_PATTERNS = [
     re.compile(r"\b(sk-[a-zA-Z0-9]{20,})\b"),
