@@ -23,7 +23,6 @@ from typing import Any, Union
 from .crypto_service import CryptoService
 from .types import ValidationContext, ValidationFailure, ValidationSuccess
 
-
 # v2.1 required fields and their expected types
 _V21_REQUIRED_FIELDS = {
     "intent_ref": str,

@@ -17,22 +17,22 @@ class GuardrailResult(BaseModel):
         message: Optional message explaining the result
         metadata: Additional metadata
     """
-    
+
     name: str = Field(
         ...,
         description="Guardrail name",
     )
-    
+
     passed: bool = Field(
         ...,
         description="Whether the guardrail check passed",
     )
-    
+
     message: Optional[str] = Field(
         None,
         description="Optional message explaining the result",
     )
-    
+
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="Additional metadata",

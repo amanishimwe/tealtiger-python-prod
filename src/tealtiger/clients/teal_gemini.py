@@ -4,17 +4,17 @@ TealGemini Client
 Drop-in replacement for Google Gemini client with integrated security and cost tracking.
 """
 
-from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field
-import google.generativeai as genai
+from typing import Any, Dict, List, Optional, Union
 
-from ..guardrails.engine import GuardrailEngine, GuardrailEngineResult
-from ..cost.tracker import CostTracker
+import google.generativeai as genai
+from pydantic import BaseModel, Field
+
 from ..cost.budget import BudgetManager
 from ..cost.storage import CostStorage
-from ..cost.types import TokenUsage, CostRecord
+from ..cost.tracker import CostTracker
+from ..cost.types import CostRecord, TokenUsage
 from ..cost.utils import generate_id
-
+from ..guardrails.engine import GuardrailEngine, GuardrailEngineResult
 
 # Type alias for content
 ContentType = Union[str, List[Dict[str, Any]]]
@@ -22,7 +22,7 @@ ContentType = Union[str, List[Dict[str, Any]]]
 
 class TealGeminiConfig(BaseModel):
     """Configuration for TealGemini client."""
-    
+
     api_key: str = Field(..., description="Google API key")
     model: str = Field(default='gemini-pro', description="Model name")
     agent_id: Optional[str] = Field(default='default-agent', description="Agent ID for tracking")
@@ -34,14 +34,14 @@ class TealGeminiConfig(BaseModel):
     cost_storage: Optional[CostStorage] = Field(default=None, description="Cost storage instance")
     safety_settings: Optional[List[Dict[str, Any]]] = Field(default=None, description="Safety settings")
     generation_config: Optional[Dict[str, Any]] = Field(default=None, description="Generation config")
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class GenerateContentRequest(BaseModel):
     """Generate content request parameters."""
-    
+
     contents: List[Dict[str, Any]]
     generation_config: Optional[Dict[str, Any]] = None
     safety_settings: Optional[List[Dict[str, Any]]] = None
@@ -50,18 +50,18 @@ class GenerateContentRequest(BaseModel):
 
 class SecurityMetadata(BaseModel):
     """Security metadata for generate content response."""
-    
+
     guardrail_result: Optional[GuardrailEngineResult] = None
     cost_record: Optional[CostRecord] = None
     budget_check: Optional[Dict[str, Any]] = None
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class GenerateContentResponse(BaseModel):
     """Generate content response."""
-    
+
     text: str
     candidates: List[Dict[str, Any]]
     prompt_feedback: Optional[Dict[str, Any]] = None
@@ -106,7 +106,7 @@ class TealGemini:
         )
         ```
     """
-    
+
     def __init__(self, config: TealGeminiConfig):
         """
         Initialize TealGemini client.
@@ -115,22 +115,22 @@ class TealGemini:
             config: Configuration for the guarded client
         """
         self.config = config
-        
+
         # Configure Gemini API
         genai.configure(api_key=config.api_key)
-        
+
         # Create model instance
         self.model = genai.GenerativeModel(
             model_name=config.model,
             safety_settings=config.safety_settings,
             generation_config=config.generation_config
         )
-        
+
         self.guardrail_engine = config.guardrail_engine
         self.cost_tracker = config.cost_tracker
         self.budget_manager = config.budget_manager
         self.cost_storage = config.cost_storage
-    
+
     async def generate_content(
         self,
         contents: Union[str, List[Dict[str, Any]]],
@@ -159,39 +159,39 @@ class TealGemini:
         request_id = generate_id()
         agent_id = self.config.agent_id
         security = SecurityMetadata()
-        
+
         try:
             # Normalize contents to list format
             if isinstance(contents, str):
                 contents = [{"role": "user", "parts": [{"text": contents}]}]
-            
+
             # Check if this is a multimodal request
             is_multimodal = self._is_multimodal_content(contents)
-            
+
             # 1. Run input guardrails (text only)
             if self.config.enable_guardrails and self.guardrail_engine:
                 user_text = self._extract_text_content(contents)
                 if user_text:  # Only run if there's text content
                     guardrail_result = await self.guardrail_engine.execute(user_text)
                     security.guardrail_result = guardrail_result
-                    
+
                     if not guardrail_result.passed:
                         failed = ', '.join(guardrail_result.get_failed_guardrails())
                         raise ValueError(
                             f"Guardrail check failed: {failed} "
                             f"(Risk: {guardrail_result.max_risk_score})"
                         )
-            
+
             # 2. Estimate cost and check budget
             if self.config.enable_cost_tracking and self.cost_tracker:
                 input_text = self._extract_text_content(contents)
                 estimated_input_tokens = len(input_text) // 4 if input_text else 100
-                
+
                 # Get max_output_tokens from generation_config or kwargs
                 gen_config = kwargs.get('generation_config', {})
-                estimated_output_tokens = gen_config.get('max_output_tokens', 
+                estimated_output_tokens = gen_config.get('max_output_tokens',
                                                         kwargs.get('max_output_tokens', 500))
-                
+
                 estimate = self.cost_tracker.estimate_cost(
                     self.config.model,
                     TokenUsage(
@@ -201,24 +201,24 @@ class TealGemini:
                     ),
                     'gemini'
                 )
-                
+
                 if self.budget_manager:
                     budget_check = await self.budget_manager.check_budget(
                         agent_id, estimate.estimated_cost
                     )
                     security.budget_check = budget_check.dict()
-                    
+
                     if not budget_check.allowed:
                         raise ValueError(
                             f"Budget exceeded: {budget_check.blocked_by.name} "
                             f"(Limit: {budget_check.blocked_by.limit})"
                         )
-            
+
             # 3. Prepare generation config with safety settings
             generation_config = kwargs.get('generation_config', self.config.generation_config)
             safety_settings = kwargs.get('safety_settings', self.config.safety_settings)
             stream = kwargs.get('stream', False)
-            
+
             # 4. Make actual API call
             if stream:
                 # Streaming not fully supported with guardrails yet
@@ -241,19 +241,19 @@ class TealGemini:
                     safety_settings=safety_settings,
                     stream=False
                 )
-            
+
             # 5. Run output guardrails
             if self.config.enable_guardrails and self.guardrail_engine and not stream:
                 assistant_text = response.text
                 output_result = await self.guardrail_engine.execute(assistant_text)
-                
+
                 if not output_result.passed:
                     failed = ', '.join(output_result.get_failed_guardrails())
                     raise ValueError(
                         f"Output guardrail check failed: {failed} "
                         f"(Risk: {output_result.max_risk_score})"
                     )
-            
+
             # 6. Track actual cost
             if self.config.enable_cost_tracking and self.cost_tracker:
                 usage_metadata = response.usage_metadata
@@ -269,13 +269,13 @@ class TealGemini:
                     'gemini'
                 )
                 security.cost_record = cost_record
-                
+
                 if self.cost_storage:
                     await self.cost_storage.store(cost_record)
-                
+
                 if self.budget_manager:
                     await self.budget_manager.record_cost(cost_record)
-            
+
             # 7. Return response with security metadata
             return GenerateContentResponse(
                 text=response.text,
@@ -316,12 +316,12 @@ class TealGemini:
                 model=self.config.model,
                 security=security
             )
-        
+
         except Exception as e:
             if isinstance(e, ValueError):
                 raise
             raise ValueError(f"TealGemini error: {str(e)}")
-    
+
     def _extract_text_content(self, contents: List[Dict[str, Any]]) -> str:
         """
         Extract text content from structured content.
@@ -333,7 +333,7 @@ class TealGemini:
             Extracted text content
         """
         text_parts = []
-        
+
         for content in contents:
             if isinstance(content, dict):
                 parts = content.get('parts', [])
@@ -342,9 +342,9 @@ class TealGemini:
                         text_parts.append(part['text'])
                     elif isinstance(part, str):
                         text_parts.append(part)
-        
+
         return '\n'.join(text_parts)
-    
+
     def _is_multimodal_content(self, contents: List[Dict[str, Any]]) -> bool:
         """
         Check if content includes multimodal data (images, etc.).

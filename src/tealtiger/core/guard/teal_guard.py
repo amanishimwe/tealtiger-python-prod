@@ -23,12 +23,12 @@ def get_component_versions_with_guard() -> Dict[str, str]:
         Dict with component versions
     """
     import importlib.metadata
-    
+
     try:
         version = importlib.metadata.version("tealtiger")
     except importlib.metadata.PackageNotFoundError:
         version = "1.1.0"
-    
+
     return {
         "sdk": version,
         "guard": version,
@@ -49,11 +49,11 @@ def determine_reason_codes_from_guardrails(
         List of ReasonCode values
     """
     codes: List[ReasonCode] = []
-    
+
     # If policy decision exists, include its reason codes
     if policy_decision:
         codes.extend(policy_decision.reason_codes)
-    
+
     # Add guardrail-specific reason codes
     for result in guardrail_results:
         if not result.passed:
@@ -71,11 +71,11 @@ def determine_reason_codes_from_guardrails(
                 # Generic policy violation
                 if ReasonCode.POLICY_VIOLATION not in codes:
                     codes.append(ReasonCode.POLICY_VIOLATION)
-    
+
     # If all passed and no codes yet, mark as compliant
     if not codes:
         codes.append(ReasonCode.POLICY_COMPLIANT)
-    
+
     # Remove duplicates while preserving order
     seen = set()
     unique_codes = []
@@ -83,7 +83,7 @@ def determine_reason_codes_from_guardrails(
         if code not in seen:
             seen.add(code)
             unique_codes.append(code)
-    
+
     return unique_codes
 
 
@@ -103,19 +103,19 @@ def calculate_risk_score_from_guardrails(
     # If policy decision exists and has higher risk, use it
     if policy_decision and policy_decision.risk_score > 0:
         return policy_decision.risk_score
-    
+
     # If all guardrails passed, no risk
     all_passed = all(result.passed for result in guardrail_results)
     if all_passed:
         return 0
-    
+
     # Base risk score for violations
     risk_score = 50
-    
+
     # Increase risk based on number of failed guardrails
     failed_count = sum(1 for result in guardrail_results if not result.passed)
     risk_score += min(failed_count * 15, 40)
-    
+
     # Check for high-risk guardrail failures
     high_risk_guardrails = ["pii", "injection", "harmful", "unsafe"]
     for result in guardrail_results:
@@ -125,7 +125,7 @@ def calculate_risk_score_from_guardrails(
             )
             if is_high_risk:
                 risk_score = min(risk_score + 10, 100)
-    
+
     return min(max(risk_score, 0), 100)
 
 
@@ -146,14 +146,14 @@ def build_reason_from_guardrails(
     """
     if passed:
         return "All guardrail checks passed"
-    
+
     failed_guardrails = [result.name for result in guardrail_results if not result.passed]
-    
+
     reason = f"Guardrail check failed: {', '.join(failed_guardrails)}"
-    
+
     if policy_decision and policy_decision.action != DecisionAction.ALLOW:
         reason += f" | Policy: {policy_decision.reason}"
-    
+
     return reason
 
 
@@ -174,7 +174,7 @@ class TealGuard:
         >>> print(f"Action: {decision.action}")
         >>> print(f"Risk Score: {decision.risk_score}")
     """
-    
+
     def __init__(
         self,
         engine: Optional[Any] = None,
@@ -201,10 +201,10 @@ class TealGuard:
         self.cache_ttl = cache_ttl
         self.cache_max_size = cache_max_size
         self.component_versions = get_component_versions_with_guard()
-        
+
         # Cache storage (simple dict for now)
         self.cache: Dict[str, Dict[str, Any]] = {}
-    
+
     async def check(
         self,
         input_data: Any,
@@ -222,13 +222,13 @@ class TealGuard:
             Decision object with action, reason_codes, risk_score, and metadata
         """
         start_time = time.time()
-        
+
         # Ensure we have a valid ExecutionContext
         execution_context = context or ContextManager.create_context()
-        
+
         # Execute guardrails (simplified - in real implementation, use GuardrailEngine)
         guardrail_results = await self._execute_guardrails(input_data, execution_context)
-        
+
         # Evaluate policy if policy-driven mode is enabled
         policy_decision: Optional[Decision] = None
         if self.policy_driven and self.engine:
@@ -245,15 +245,15 @@ class TealGuard:
                 },
             }
             policy_decision = self.engine.evaluate_with_mode(request_context, execution_context)
-        
+
         execution_time = int((time.time() - start_time) * 1000)
-        
+
         # Determine overall action based on guardrail and policy results
         all_passed = all(result.passed for result in guardrail_results)
         passed = all_passed and (
             policy_decision.action == DecisionAction.ALLOW if policy_decision else True
         )
-        
+
         # Build Decision object
         decision = self._build_decision(
             passed=passed,
@@ -262,9 +262,9 @@ class TealGuard:
             execution_context=execution_context,
             execution_time=execution_time,
         )
-        
+
         return decision
-    
+
     async def _execute_guardrails(
         self,
         input_data: Any,
@@ -282,7 +282,7 @@ class TealGuard:
         # Simplified guardrail execution - in real implementation, use GuardrailEngine
         # For now, just return empty list (all passed)
         return []
-    
+
     def _build_decision(
         self,
         passed: bool,
@@ -310,23 +310,23 @@ class TealGuard:
             action = DecisionAction.DENY
         else:
             action = DecisionAction.ALLOW
-        
+
         # Determine reason codes
         reason_codes = determine_reason_codes_from_guardrails(
             guardrail_results, policy_decision
         )
-        
+
         # Calculate risk score
         risk_score = calculate_risk_score_from_guardrails(
             guardrail_results, policy_decision
         )
-        
+
         # Build human-readable reason
         reason = build_reason_from_guardrails(passed, guardrail_results, policy_decision)
-        
+
         # Determine mode (default to ENFORCE if not policy-driven)
         mode = policy_decision.mode if policy_decision else PolicyMode.ENFORCE
-        
+
         # Build triggered policies list
         triggered_policies: List[str] = []
         for result in guardrail_results:
@@ -334,7 +334,7 @@ class TealGuard:
                 triggered_policies.append(f"guardrail.{result.name}")
         if policy_decision and policy_decision.metadata.get("triggered_policies"):
             triggered_policies.extend(policy_decision.metadata["triggered_policies"])
-        
+
         # Build metadata
         metadata: Dict[str, Any] = {
             "evaluation_time_ms": execution_time,
@@ -345,7 +345,7 @@ class TealGuard:
                 "failed": sum(1 for result in guardrail_results if not result.passed),
             },
         }
-        
+
         if triggered_policies:
             metadata["triggered_policies"] = triggered_policies
         if execution_context.tenant_id:
@@ -356,7 +356,7 @@ class TealGuard:
             metadata["environment"] = execution_context.environment
         if execution_context.agent_purpose:
             metadata["agent_purpose"] = execution_context.agent_purpose
-        
+
         # Build Decision object
         decision = Decision(
             action=action,
@@ -370,7 +370,7 @@ class TealGuard:
             reason=reason,
             metadata=metadata,
         )
-        
+
         # Add optional fields only if defined
         if execution_context.trace_id:
             decision.trace_id = execution_context.trace_id
@@ -382,5 +382,5 @@ class TealGuard:
             decision.span_id = execution_context.span_id
         if execution_context.parent_span_id:
             decision.parent_span_id = execution_context.parent_span_id
-        
+
         return decision

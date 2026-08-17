@@ -31,14 +31,12 @@ from .types import (
     FreezeRule,
     GovernanceContext,
     GovernanceRequest,
-    NHIDescriptor,
     NHIInventory,
     PlanOnlyConfig,
     PolicyMatcher,
     TealEngineV13Options,
     ZSPConfig,
 )
-
 
 # ── v1.3 Reason Codes ────────────────────────────────────────────
 

@@ -9,9 +9,8 @@ import hashlib
 import re
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
 
-from .types import SafeContent
+from pydantic import BaseModel, Field
 
 
 class RedactionLevel(str, Enum):

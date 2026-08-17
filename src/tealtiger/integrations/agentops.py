@@ -23,8 +23,8 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 try:
-    from agentops import ActionEvent, ErrorEvent
     import agentops
+    from agentops import ActionEvent, ErrorEvent
 except ImportError:
     raise ImportError(
         "agentops is required for this integration. "

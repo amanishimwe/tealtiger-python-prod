@@ -4,23 +4,22 @@ TealAnthropic Client
 Drop-in replacement for Anthropic client with integrated security and cost tracking.
 """
 
-from typing import Optional, List, Dict, Any, Literal, Union
-from pydantic import BaseModel, Field
-from anthropic import AsyncAnthropic
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from ..guardrails.engine import GuardrailEngine, GuardrailEngineResult
-from ..cost.tracker import CostTracker
-from ..cost.budget import BudgetManager, BudgetEnforcementResult
-from ..cost.storage import CostStorage
-from ..cost.types import TokenUsage, CostRecord
-from ..cost.utils import generate_id
-from ..core.context.execution_context import ExecutionContext
+from anthropic import AsyncAnthropic
+from pydantic import BaseModel, Field
+
+from ..core.audit.teal_audit import TealAudit
 from ..core.context.context_manager import ContextManager
-from ..core.engine.types import Decision
+from ..core.context.execution_context import ExecutionContext
 from ..core.engine.teal_engine import TealEngine
 from ..core.guard.teal_guard import TealGuard
-from ..core.audit.teal_audit import TealAudit
-
+from ..cost.budget import BudgetManager
+from ..cost.storage import CostStorage
+from ..cost.tracker import CostTracker
+from ..cost.types import CostRecord, TokenUsage
+from ..cost.utils import generate_id
+from ..guardrails.engine import GuardrailEngine, GuardrailEngineResult
 
 # Type alias for message content
 MessageContent = Union[str, List[Dict[str, Any]]]
@@ -28,7 +27,7 @@ MessageContent = Union[str, List[Dict[str, Any]]]
 
 class TealAnthropicConfig(BaseModel):
     """Configuration for TealAnthropic client."""
-    
+
     api_key: str = Field(..., description="Anthropic API key")
     agent_id: Optional[str] = Field(default='default-agent', description="Agent ID for tracking")
     enable_guardrails: bool = Field(default=True, description="Enable guardrails")
@@ -42,14 +41,14 @@ class TealAnthropicConfig(BaseModel):
     engine: Optional[TealEngine] = Field(default=None, description="TealEngine instance for policy evaluation")
     guard: Optional[TealGuard] = Field(default=None, description="TealGuard instance for content validation")
     audit: Optional[TealAudit] = Field(default=None, description="TealAudit instance for audit logging")
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class MessageCreateRequest(BaseModel):
     """Message create request parameters."""
-    
+
     model: str
     messages: List[Dict[str, Any]]
     max_tokens: int
@@ -64,18 +63,18 @@ class MessageCreateRequest(BaseModel):
 
 class SecurityMetadata(BaseModel):
     """Security metadata for message response."""
-    
+
     guardrail_result: Optional[GuardrailEngineResult] = None
     cost_record: Optional[CostRecord] = None
     budget_check: Optional[Dict[str, Any]] = None
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class MessageCreateResponse(BaseModel):
     """Message create response."""
-    
+
     id: str
     type: Literal['message']
     role: Literal['assistant']
@@ -89,10 +88,10 @@ class MessageCreateResponse(BaseModel):
 
 class Messages:
     """Messages API."""
-    
+
     def __init__(self, parent: 'TealAnthropic'):
         self.parent = parent
-    
+
     async def create(self, **kwargs) -> MessageCreateResponse:
         """
         Create a message with security and cost tracking.
@@ -110,7 +109,7 @@ class Messages:
         request_id = generate_id()
         agent_id = self.parent.config.agent_id
         security = SecurityMetadata()
-        
+
         # Extract or create execution context
         context = kwargs.pop('context', None)
         if context is None:
@@ -118,7 +117,7 @@ class Messages:
         elif not isinstance(context, ExecutionContext):
             # Convert dict to ExecutionContext if needed
             context = ExecutionContext(**context) if isinstance(context, dict) else context
-        
+
         try:
             # 1. Policy evaluation with TealEngine (if configured)
             if self.parent.engine:
@@ -134,17 +133,17 @@ class Messages:
                     )
                 )
                 decision = self.parent.engine.evaluate(policy_context)
-                
+
                 # Log decision with audit
                 if self.parent.audit:
                     self.parent.audit.log_decision(decision, context)
-                
+
                 # Handle non-ALLOW decisions
                 if decision.action != 'ALLOW':
                     raise ValueError(
                         f"Policy evaluation failed: {decision.action} - {decision.reason}"
                     )
-            
+
             # 2. Content validation with TealGuard (if configured)
             if self.parent.guard:
                 user_messages = '\n'.join(
@@ -153,16 +152,16 @@ class Messages:
                     if m.get('role') == 'user'
                 )
                 guard_decision = self.parent.guard.check(user_messages, context)
-                
+
                 # Log guard decision
                 if self.parent.audit:
                     self.parent.audit.log_decision(guard_decision, context)
-                
+
                 if guard_decision.action != 'ALLOW':
                     raise ValueError(
                         f"Content validation failed: {guard_decision.action} - {guard_decision.reason}"
                     )
-            
+
             # 3. Run input guardrails (legacy support)
             if self.parent.config.enable_guardrails and self.parent.guardrail_engine:
                 user_messages = '\n'.join(
@@ -172,14 +171,14 @@ class Messages:
                 )
                 guardrail_result = await self.parent.guardrail_engine.execute(user_messages)
                 security.guardrail_result = guardrail_result
-                
+
                 if not guardrail_result.passed:
                     failed = ', '.join(guardrail_result.get_failed_guardrails())
                     raise ValueError(
                         f"Guardrail check failed: {failed} "
                         f"(Risk: {guardrail_result.max_risk_score})"
                     )
-            
+
             # 4. Estimate cost and check budget
             if self.parent.config.enable_cost_tracking and self.parent.cost_tracker:
                 # Estimate tokens (rough approximation: 4 chars = 1 token)
@@ -190,7 +189,7 @@ class Messages:
                 system_text = kwargs.get('system', '')
                 estimated_input_tokens = len(input_text + system_text) // 4
                 estimated_output_tokens = kwargs.get('max_tokens', 500)
-                
+
                 estimate = self.parent.cost_tracker.estimate_cost(
                     kwargs['model'],
                     TokenUsage(
@@ -200,22 +199,22 @@ class Messages:
                     ),
                     'anthropic'
                 )
-                
+
                 if self.parent.budget_manager:
                     budget_check = await self.parent.budget_manager.check_budget(
                         agent_id, estimate.estimated_cost
                     )
                     security.budget_check = budget_check.dict()
-                    
+
                     if not budget_check.allowed:
                         raise ValueError(
                             f"Budget exceeded: {budget_check.blocked_by.name} "
                             f"(Limit: {budget_check.blocked_by.limit})"
                         )
-            
+
             # 5. Make actual API call
             response = await self.parent.client.messages.create(**kwargs)
-            
+
             # 6. Run output guardrails
             if self.parent.config.enable_guardrails and self.parent.guardrail_engine:
                 assistant_message = '\n'.join(
@@ -223,14 +222,14 @@ class Messages:
                     if c.get('type') == 'text'
                 )
                 output_result = await self.parent.guardrail_engine.execute(assistant_message)
-                
+
                 if not output_result.passed:
                     failed = ', '.join(output_result.get_failed_guardrails())
                     raise ValueError(
                         f"Output guardrail check failed: {failed} "
                         f"(Risk: {output_result.max_risk_score})"
                     )
-            
+
             # 7. Track actual cost
             if self.parent.config.enable_cost_tracking and self.parent.cost_tracker:
                 cost_record = self.parent.cost_tracker.calculate_actual_cost(
@@ -245,13 +244,13 @@ class Messages:
                     'anthropic'
                 )
                 security.cost_record = cost_record
-                
+
                 if self.parent.cost_storage:
                     await self.parent.cost_storage.store(cost_record)
-                
+
                 if self.parent.budget_manager:
                     await self.parent.budget_manager.record_cost(cost_record)
-            
+
             # 8. Log completion event
             if self.parent.audit:
                 from ..core.audit.types import AuditEventType
@@ -268,7 +267,7 @@ class Messages:
                         }
                     }
                 )
-            
+
             # 9. Return response with security metadata
             return MessageCreateResponse(
                 id=response.id,
@@ -290,7 +289,7 @@ class Messages:
                 },
                 security=security
             )
-        
+
         except Exception as e:
             # Log error event
             if self.parent.audit:
@@ -304,7 +303,7 @@ class Messages:
                         'provider': 'anthropic'
                     }
                 )
-            
+
             if isinstance(e, ValueError):
                 raise
             raise ValueError(f"TealAnthropic error: {str(e)}")
@@ -347,7 +346,7 @@ class TealAnthropic:
         )
         ```
     """
-    
+
     def __init__(self, config: TealAnthropicConfig):
         """
         Initialize TealAnthropic client.
@@ -368,12 +367,12 @@ class TealAnthropic:
         self.engine = config.engine
         self.guard = config.guard
         self.audit = config.audit
-    
+
     @property
     def messages(self) -> Messages:
         """Access messages API."""
         return Messages(self)
-    
+
     def _extract_text_content(self, content: MessageContent) -> str:
         """
         Extract text content from message content (handles both string and array formats).
@@ -386,7 +385,7 @@ class TealAnthropic:
         """
         if isinstance(content, str):
             return content
-        
+
         if isinstance(content, list):
             text_parts = []
             for item in content:
@@ -394,6 +393,6 @@ class TealAnthropic:
                     if item.get('type') == 'text' and 'text' in item:
                         text_parts.append(item['text'])
             return '\n'.join(text_parts)
-        
+
         return ''
 

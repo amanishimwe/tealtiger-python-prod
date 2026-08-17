@@ -13,10 +13,9 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Protocol, Union
+from typing import Any, List, Protocol
 
 from .types import ACTION_SEVERITY, ModuleEvalDetail, PipelineRequest, RemediationAction
-
 
 # ---------------------------------------------------------------------------
 # Protocols (structural typing for dependency injection)

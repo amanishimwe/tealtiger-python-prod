@@ -4,21 +4,21 @@ Cost Tracker
 Core component for calculating and tracking AI model costs.
 """
 
-from typing import Optional, Dict
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
+from typing import Dict, Optional
 
 from pydantic import BaseModel
 
+from .pricing import get_model_pricing
 from .types import (
+    CostBreakdown,
     CostEstimate,
     CostRecord,
-    TokenUsage,
-    ModelProvider,
     ModelPricing,
-    CostBreakdown,
+    ModelProvider,
+    TokenUsage,
 )
-from .pricing import get_model_pricing
 from .utils import generate_id
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class CostTracker:
     - Multiple AI providers (OpenAI, Anthropic, Google, Cohere)
     - Vision and audio models
     """
-    
+
     def __init__(self, config: Optional[CostTrackerConfig] = None):
         """
         Initialize CostTracker.
@@ -55,10 +55,10 @@ class CostTracker:
         """
         self.config = config or CostTrackerConfig()
         self.custom_pricing: Dict[str, ModelPricing] = {}
-        
+
         if config and config.custom_pricing:
             self.custom_pricing = config.custom_pricing
-    
+
     def estimate_cost(
         self,
         model: str,
@@ -78,11 +78,11 @@ class CostTracker:
         """
         if not self.config.enabled:
             return self._create_zero_estimate(
-                model, 
+                model,
                 provider or self.config.default_provider or 'openai',
                 estimated_tokens
             )
-        
+
         pricing = self._get_pricing(model, provider)
         if not pricing:
             logger.warning(f"No pricing found for model: {model}")
@@ -91,10 +91,10 @@ class CostTracker:
                 provider or self.config.default_provider or 'custom',
                 estimated_tokens
             )
-        
+
         breakdown = self._calculate_breakdown(pricing, estimated_tokens)
         total_cost = sum(v for v in breakdown.model_dump().values() if v is not None)
-        
+
         return CostEstimate(
             estimated_cost=total_cost,
             model=pricing.model,
@@ -103,7 +103,7 @@ class CostTracker:
             breakdown=breakdown,
             timestamp=datetime.now(timezone.utc).isoformat()
         )
-    
+
     def calculate_actual_cost(
         self,
         request_id: str,
@@ -135,7 +135,7 @@ class CostTracker:
                 provider or self.config.default_provider or 'openai',
                 actual_tokens
             )
-        
+
         pricing = self._get_pricing(model, provider)
         if not pricing:
             logger.warning(f"No pricing found for model: {model}")
@@ -146,10 +146,10 @@ class CostTracker:
                 provider or self.config.default_provider or 'custom',
                 actual_tokens
             )
-        
+
         breakdown = self._calculate_breakdown(pricing, actual_tokens)
         total_cost = sum(v for v in breakdown.model_dump().values() if v is not None)
-        
+
         return CostRecord(
             id=generate_id(),
             request_id=request_id,
@@ -162,7 +162,7 @@ class CostTracker:
             timestamp=datetime.now(timezone.utc).isoformat(),
             metadata=metadata
         )
-    
+
     def add_custom_pricing(self, model: str, pricing: ModelPricing) -> None:
         """
         Add custom pricing for a model.
@@ -172,7 +172,7 @@ class CostTracker:
             pricing: Custom pricing information
         """
         self.custom_pricing[model] = pricing
-    
+
     def remove_custom_pricing(self, model: str) -> None:
         """
         Remove custom pricing for a model.
@@ -181,7 +181,7 @@ class CostTracker:
             model: Model identifier
         """
         self.custom_pricing.pop(model, None)
-    
+
     def get_pricing(self, model: str) -> Optional[ModelPricing]:
         """
         Get pricing for a model (custom or default).
@@ -193,10 +193,10 @@ class CostTracker:
             Model pricing or None if not found
         """
         return self._get_pricing(model)
-    
+
     def _get_pricing(
-        self, 
-        model: str, 
+        self,
+        model: str,
         provider: Optional[ModelProvider] = None
     ) -> Optional[ModelPricing]:
         """
@@ -212,13 +212,13 @@ class CostTracker:
         # Check custom pricing first
         if model in self.custom_pricing:
             return self.custom_pricing[model]
-        
+
         # Fall back to default pricing
         return get_model_pricing(model, provider or self.config.default_provider)
-    
+
     def _calculate_breakdown(
-        self, 
-        pricing: ModelPricing, 
+        self,
+        pricing: ModelPricing,
         tokens: TokenUsage
     ) -> CostBreakdown:
         """
@@ -233,26 +233,26 @@ class CostTracker:
         """
         input_cost = (tokens.input_tokens / 1000) * pricing.input_cost_per_1k
         output_cost = (tokens.output_tokens / 1000) * pricing.output_cost_per_1k
-        
+
         image_cost = None
         if tokens.images and pricing.image_cost:
             image_cost = tokens.images * pricing.image_cost
-        
+
         audio_cost = None
         if tokens.audio_duration and pricing.audio_cost_per_second:
             audio_cost = tokens.audio_duration * pricing.audio_cost_per_second
-        
+
         return CostBreakdown(
             input_cost=input_cost,
             output_cost=output_cost,
             image_cost=image_cost,
             audio_cost=audio_cost
         )
-    
+
     def _create_zero_estimate(
-        self, 
-        model: str, 
-        provider: ModelProvider, 
+        self,
+        model: str,
+        provider: ModelProvider,
         tokens: TokenUsage
     ) -> CostEstimate:
         """
@@ -274,7 +274,7 @@ class CostTracker:
             breakdown=CostBreakdown(input_cost=0.0, output_cost=0.0),
             timestamp=datetime.now(timezone.utc).isoformat()
         )
-    
+
     def _create_zero_record(
         self,
         request_id: str,

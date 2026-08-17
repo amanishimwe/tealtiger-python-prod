@@ -15,7 +15,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .errors import ModuleValidationError, PipelineConfigError
 from .execution_stage import ExecutionStage
@@ -26,7 +26,6 @@ from .stage_evaluator import StageEvaluator
 from .types import (
     ACTION_SEVERITY,
     PipelineConfig,
-    PipelineHooks,
     PipelineRequest,
     PipelineResult,
     PipelineStage,
@@ -34,7 +33,6 @@ from .types import (
     RemediationAction,
     StageDecision,
 )
-
 
 # ---------------------------------------------------------------------------
 # Module Status Types

@@ -16,19 +16,18 @@ from ..context.context_manager import ContextManager
 from ..context.execution_context import ExecutionContext
 from ..engine.types import Decision, DecisionAction, PolicyMode, ReasonCode
 
-
 T = TypeVar("T")
 
 
 class CircuitState(str, Enum):
     """Circuit breaker states."""
-    
+
     CLOSED = "closed"
     """Normal operation, requests pass through"""
-    
+
     OPEN = "open"
     """Circuit is tripped, requests fail immediately"""
-    
+
     HALF_OPEN = "half-open"
     """Testing if the service has recovered"""
 
@@ -40,12 +39,12 @@ def get_component_versions_with_circuit() -> Dict[str, str]:
         Dict with component versions
     """
     import importlib.metadata
-    
+
     try:
         version = importlib.metadata.version("tealtiger")
     except importlib.metadata.PackageNotFoundError:
         version = "1.1.0"
-    
+
     return {
         "sdk": version,
         "circuit": version,
@@ -54,7 +53,7 @@ def get_component_versions_with_circuit() -> Dict[str, str]:
 
 class CircuitOpenError(Exception):
     """Error thrown when circuit is open."""
-    
+
     def __init__(self, message: str = "Circuit breaker is open"):
         super().__init__(message)
         self.message = message
@@ -86,7 +85,7 @@ class TealCircuit:
         >>> if decision.action == DecisionAction.DENY:
         ...     print("Circuit is open, service unavailable")
     """
-    
+
     def __init__(
         self,
         failure_threshold: int = 5,
@@ -106,13 +105,13 @@ class TealCircuit:
         self.timeout = timeout
         self.half_open_requests = half_open_requests
         self.on_state_change = on_state_change or (lambda new, old: None)
-        
+
         self.state = CircuitState.CLOSED
         self.failures = 0
         self.last_failure_time: Optional[datetime] = None
         self.half_open_attempts = 0
         self.component_versions = get_component_versions_with_circuit()
-    
+
     async def execute(self, fn: Callable[[], T]) -> T:
         """Execute a function with circuit breaker protection.
         
@@ -131,7 +130,7 @@ class TealCircuit:
                 self._transition_to(CircuitState.HALF_OPEN)
             else:
                 raise CircuitOpenError("Circuit breaker is open")
-        
+
         try:
             result = await fn()
             self._on_success()
@@ -139,7 +138,7 @@ class TealCircuit:
         except Exception as error:
             self._on_failure()
             raise error
-    
+
     def evaluate(self, context: Optional[ExecutionContext] = None) -> Decision:
         """Evaluate circuit state and return a Decision object.
         
@@ -156,14 +155,14 @@ class TealCircuit:
             Decision object with action, reason_codes, risk_score, and metadata
         """
         start_time = time.time()
-        
+
         # Ensure we have an ExecutionContext
         execution_context = context or ContextManager.create_context()
-        
+
         # Check if circuit should attempt reset
         if self.state == CircuitState.OPEN and self._should_attempt_reset():
             self._transition_to(CircuitState.HALF_OPEN)
-        
+
         # Determine action based on circuit state
         if self.state == CircuitState.OPEN:
             action = DecisionAction.DENY
@@ -180,7 +179,7 @@ class TealCircuit:
             reason_codes = [ReasonCode.POLICY_COMPLIANT]
             risk_score = 0  # No risk when circuit is closed
             reason = "Circuit breaker is closed - normal operation"
-        
+
         # Build metadata
         metadata: Dict[str, Any] = {
             "evaluation_time_ms": int((time.time() - start_time) * 1000),
@@ -191,7 +190,7 @@ class TealCircuit:
             ),
             "half_open_attempts": self.half_open_attempts,
         }
-        
+
         if execution_context.tenant_id:
             metadata["tenant_id"] = execution_context.tenant_id
         if execution_context.application:
@@ -200,7 +199,7 @@ class TealCircuit:
             metadata["environment"] = execution_context.environment
         if execution_context.agent_purpose:
             metadata["agent_purpose"] = execution_context.agent_purpose
-        
+
         # Build Decision object
         decision = Decision(
             action=action,
@@ -214,7 +213,7 @@ class TealCircuit:
             reason=reason,
             metadata=metadata,
         )
-        
+
         # Add optional fields only if defined
         if execution_context.trace_id:
             decision.trace_id = execution_context.trace_id
@@ -226,9 +225,9 @@ class TealCircuit:
             decision.span_id = execution_context.span_id
         if execution_context.parent_span_id:
             decision.parent_span_id = execution_context.parent_span_id
-        
+
         return decision
-    
+
     def get_state(self) -> CircuitState:
         """Get current circuit state.
         
@@ -236,25 +235,25 @@ class TealCircuit:
             Current CircuitState
         """
         return self.state
-    
+
     def reset(self) -> None:
         """Reset the circuit to closed state."""
         self._transition_to(CircuitState.CLOSED)
         self.failures = 0
         self.last_failure_time = None
         self.half_open_attempts = 0
-    
+
     def force_open(self) -> None:
         """Force the circuit to open state."""
         self._transition_to(CircuitState.OPEN)
-    
+
     def force_close(self) -> None:
         """Force the circuit to closed state."""
         self._transition_to(CircuitState.CLOSED)
         self.failures = 0
         self.last_failure_time = None
         self.half_open_attempts = 0
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get circuit statistics.
         
@@ -267,12 +266,12 @@ class TealCircuit:
             "last_failure_time": self.last_failure_time,
             "half_open_attempts": self.half_open_attempts,
         }
-    
+
     def _on_success(self) -> None:
         """Handle successful execution."""
         if self.state == CircuitState.HALF_OPEN:
             self.half_open_attempts += 1
-            
+
             if self.half_open_attempts >= self.half_open_requests:
                 self._transition_to(CircuitState.CLOSED)
                 self.failures = 0
@@ -281,12 +280,12 @@ class TealCircuit:
         elif self.state == CircuitState.CLOSED:
             # Reset failure count on success
             self.failures = 0
-    
+
     def _on_failure(self) -> None:
         """Handle failed execution."""
         self.failures += 1
         self.last_failure_time = datetime.utcnow()
-        
+
         if self.state == CircuitState.HALF_OPEN:
             # Any failure in half-open state opens the circuit
             self.half_open_attempts = 0  # Reset half-open attempts
@@ -294,7 +293,7 @@ class TealCircuit:
         elif self.state == CircuitState.CLOSED and self.failures >= self.failure_threshold:
             # Threshold reached, open the circuit
             self._transition_to(CircuitState.OPEN)
-    
+
     def _should_attempt_reset(self) -> bool:
         """Check if enough time has passed to attempt reset.
         
@@ -303,10 +302,10 @@ class TealCircuit:
         """
         if not self.last_failure_time:
             return False
-        
+
         elapsed_ms = (datetime.utcnow() - self.last_failure_time).total_seconds() * 1000
         return elapsed_ms >= self.timeout
-    
+
     def _transition_to(self, new_state: CircuitState) -> None:
         """Transition to a new state.
         
@@ -314,14 +313,14 @@ class TealCircuit:
             new_state: New CircuitState
         """
         old_state = self.state
-        
+
         if old_state == new_state:
             return  # No transition needed
-        
+
         self.state = new_state
-        
+
         if new_state == CircuitState.HALF_OPEN:
             self.half_open_attempts = 0
-        
+
         # Invoke callback
         self.on_state_change(new_state, old_state)

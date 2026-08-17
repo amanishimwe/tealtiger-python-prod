@@ -16,8 +16,6 @@ from .execution_context import (
     CONTEXT_HEADERS,
     ExecutionContext,
     ExecutionContextOptions,
-    is_valid_correlation_id,
-    is_valid_uuid_v4,
     validate_execution_context,
 )
 

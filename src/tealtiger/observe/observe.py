@@ -28,24 +28,22 @@ import time
 import uuid
 from typing import Any, List, Optional
 
+from ..core.engine.v2_1.errors import SealConfigurationError
+from ..core.engine.v2_1.governance_engine import GovernanceEngineV21, GovernanceEngineV21Options
+from ..core.engine.v2_1.types import DecisionV21
+from .behavioral_baseline import BehavioralBaseline
+from .cost_accumulator import CostAccumulator
+from .errors import FrozenAgentError
+from .freeze_registry import FreezeRegistry
+from .observe_audit import ObserveAuditLogger
+from .pii_scanner import ObservePIIScanner
+from .provider_detector import detect_provider
 from .types import (
     BaselineResult,
     BaselineSample,
     ObserveCostSummary,
     ProviderSignature,
 )
-from .errors import FrozenAgentError
-from .provider_detector import detect_provider
-from .cost_accumulator import CostAccumulator
-from .behavioral_baseline import BehavioralBaseline
-from .pii_scanner import ObservePIIScanner
-from .observe_audit import ObserveAuditLogger
-from .freeze_registry import FreezeRegistry
-
-from ..core.engine.v2_1.governance_engine import GovernanceEngineV21, GovernanceEngineV21Options
-from ..core.engine.v2_1.types import DecisionV21
-from ..core.engine.v2_1.errors import SealConfigurationError
-
 
 # ---------------------------------------------------------------------------
 # Telemetry accessor names — these are exposed as methods on the proxy

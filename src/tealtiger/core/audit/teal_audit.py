@@ -12,15 +12,16 @@ import json
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
+from ..context.execution_context import ExecutionContext
 from .redaction import (
     RedactionLevel,
     get_default_redaction_level,
 )
 from .types import AuditEvent, validate_audit_event
-from ..context.execution_context import ExecutionContext
 
 
 class CustomRedactionRule(BaseModel):
@@ -583,7 +584,7 @@ class TealAudit:
             event_type_str = event.event_type if isinstance(event.event_type, str) else event.event_type.value
             mode_str = event.mode if isinstance(event.mode, str) else event.mode.value if event.mode else ""
             action_str = event.action if isinstance(event.action, str) else event.action.value if event.action else ""
-            
+
             row = [
                 self._escape_csv(event.schema_version),
                 self._escape_csv(event_type_str),

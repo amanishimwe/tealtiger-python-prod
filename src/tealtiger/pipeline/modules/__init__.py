@@ -6,19 +6,19 @@ post-execution governance modules.
 Requirements: 11.4
 """
 
-from tealtiger.pipeline.modules.pre import (
-    PolicyEvaluationModule,
-    InputValidationModule,
-    PIIScannerModule,
-    CostBudgetModule,
-    ToolAllowlistModule,
-)
 from tealtiger.pipeline.modules.post import (
     ContentModerationModule,
-    OutputPIIModule,
-    HallucinationMarkerModule,
-    ToolCallValidationModule,
     CostReconciliationModule,
+    HallucinationMarkerModule,
+    OutputPIIModule,
+    ToolCallValidationModule,
+)
+from tealtiger.pipeline.modules.pre import (
+    CostBudgetModule,
+    InputValidationModule,
+    PIIScannerModule,
+    PolicyEvaluationModule,
+    ToolAllowlistModule,
 )
 
 __all__ = [

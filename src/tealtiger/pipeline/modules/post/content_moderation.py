@@ -11,9 +11,8 @@ Requirements: 7.1, 7.6, 7.7
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-
 
 # ---------------------------------------------------------------------------
 # Configuration

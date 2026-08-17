@@ -9,36 +9,41 @@ Only the provider SDK you actually use needs to be installed.
 
 from typing import TYPE_CHECKING
 
-# Always available (OpenAI is a required dependency)
-from .teal_openai import (
-    TealOpenAI,
-    TealOpenAIConfig,
-    ChatCompletionMessage,
-    ChatCompletionRequest,
-    SecurityMetadata,
-    ChatCompletionResponse,
-)
-
 from .teal_anthropic import (
-    TealAnthropic,
-    TealAnthropicConfig,
     MessageCreateRequest,
     MessageCreateResponse,
+    TealAnthropic,
+    TealAnthropicConfig,
 )
-
 from .teal_azure_openai import (
-    TealAzureOpenAI,
-    TealAzureOpenAIConfig,
     AzureChatCompletionMessage,
     AzureChatCompletionRequest,
     AzureChatCompletionResponse,
+    TealAzureOpenAI,
+    TealAzureOpenAIConfig,
 )
+
+# Always available (OpenAI is a required dependency)
+from .teal_openai import (
+    ChatCompletionMessage,
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    SecurityMetadata,
+    TealOpenAI,
+    TealOpenAIConfig,
+)
+
 
 # Lazy imports for optional providers
 def __getattr__(name: str):
     """Lazy import for optional provider clients."""
     if name in ("TealGemini", "TealGeminiConfig", "GenerateContentRequest", "GenerateContentResponse"):
-        from .teal_gemini import TealGemini, TealGeminiConfig, GenerateContentRequest, GenerateContentResponse
+        from .teal_gemini import (
+            GenerateContentRequest,
+            GenerateContentResponse,
+            TealGemini,
+            TealGeminiConfig,
+        )
         _map = {
             "TealGemini": TealGemini,
             "TealGeminiConfig": TealGeminiConfig,
@@ -48,7 +53,7 @@ def __getattr__(name: str):
         return _map[name]
 
     if name in ("TealBedrock", "TealBedrockConfig", "BedrockResponse"):
-        from .teal_bedrock import TealBedrock, TealBedrockConfig, BedrockResponse
+        from .teal_bedrock import BedrockResponse, TealBedrock, TealBedrockConfig
         _map = {
             "TealBedrock": TealBedrock,
             "TealBedrockConfig": TealBedrockConfig,
@@ -57,7 +62,7 @@ def __getattr__(name: str):
         return _map[name]
 
     if name in ("TealCohere", "TealCohereConfig", "ChatResponse", "EmbedResponse"):
-        from .teal_cohere import TealCohere, TealCohereConfig, ChatResponse, EmbedResponse
+        from .teal_cohere import ChatResponse, EmbedResponse, TealCohere, TealCohereConfig
         _map = {
             "TealCohere": TealCohere,
             "TealCohereConfig": TealCohereConfig,

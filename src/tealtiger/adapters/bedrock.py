@@ -10,11 +10,11 @@ Requirements: 14.1, 14.2, 14.3, 14.4
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional
 
-from .base import BaseGovernanceAdapter, PlatformDecision, PlatformType
 from ..core.engine.v1_3 import DecisionV13, GovernanceRequest
+from .base import BaseGovernanceAdapter, PlatformDecision, PlatformType
 
 __all__ = [
     "BedrockGuardrailEvent",

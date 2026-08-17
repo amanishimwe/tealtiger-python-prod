@@ -14,7 +14,6 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, TypedDict
 
-
 __all__ = [
     "score_instruction_likeness",
     "detect_memory_instruction_injection",

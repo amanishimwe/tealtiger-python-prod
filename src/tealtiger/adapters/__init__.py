@@ -16,10 +16,10 @@ Module: adapters
 Requirements: 14.13, 14.14, 14.16
 """
 
-from .base import GovernanceAdapter, BaseGovernanceAdapter, PlatformDecision, PlatformType
-from .bedrock import BedrockGuardrailAdapter
 from .agentcore import AgentCorePlugin
 from .azure import AzureAgentMiddleware
+from .base import BaseGovernanceAdapter, GovernanceAdapter, PlatformDecision, PlatformType
+from .bedrock import BedrockGuardrailAdapter
 
 __all__ = [
     # Base
