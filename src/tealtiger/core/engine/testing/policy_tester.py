@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from xml.etree import ElementTree as ET
 
-from ..types import Decision, DecisionAction, ReasonCode
+from ..types import Decision
 from .types import (
     CoverageInfo,
     PolicyTestCase,

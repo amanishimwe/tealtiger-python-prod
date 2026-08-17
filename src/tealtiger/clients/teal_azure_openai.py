@@ -4,21 +4,22 @@ TealAzureOpenAI Client
 Drop-in replacement for Azure OpenAI client with integrated security and cost tracking.
 """
 
-from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field
-from openai import AsyncAzureOpenAI
+from typing import Any, Dict, List, Literal, Optional
 
-from ..guardrails.engine import GuardrailEngine, GuardrailEngineResult
-from ..cost.tracker import CostTracker
-from ..cost.budget import BudgetManager, BudgetEnforcementResult
+from openai import AsyncAzureOpenAI
+from pydantic import BaseModel, Field
+
+from ..cost.budget import BudgetManager
 from ..cost.storage import CostStorage
-from ..cost.types import TokenUsage, CostRecord
+from ..cost.tracker import CostTracker
+from ..cost.types import CostRecord, TokenUsage
 from ..cost.utils import generate_id
+from ..guardrails.engine import GuardrailEngine, GuardrailEngineResult
 
 
 class TealAzureOpenAIConfig(BaseModel):
     """Configuration for TealAzureOpenAI client."""
-    
+
     api_key: str = Field(..., description="Azure OpenAI API key")
     endpoint: str = Field(..., description="Azure OpenAI endpoint (e.g., https://your-resource.openai.azure.com)")
     api_version: Optional[str] = Field(default='2024-02-15-preview', description="Azure OpenAI API version")
@@ -30,14 +31,14 @@ class TealAzureOpenAIConfig(BaseModel):
     budget_manager: Optional[BudgetManager] = Field(default=None, description="Budget manager instance")
     cost_storage: Optional[CostStorage] = Field(default=None, description="Cost storage instance")
     azure_ad_token: Optional[str] = Field(default=None, description="Azure AD token for authentication")
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class AzureChatCompletionMessage(BaseModel):
     """Azure chat completion message."""
-    
+
     role: Literal['system', 'user', 'assistant', 'function']
     content: str
     name: Optional[str] = None
@@ -45,7 +46,7 @@ class AzureChatCompletionMessage(BaseModel):
 
 class AzureChatCompletionRequest(BaseModel):
     """Azure chat completion request parameters."""
-    
+
     deployment: str  # Azure uses deployment name instead of model
     messages: List[AzureChatCompletionMessage]
     temperature: Optional[float] = None
@@ -62,18 +63,18 @@ class AzureChatCompletionRequest(BaseModel):
 
 class SecurityMetadata(BaseModel):
     """Security metadata for Azure chat completion response."""
-    
+
     guardrail_result: Optional[GuardrailEngineResult] = None
     cost_record: Optional[CostRecord] = None
     budget_check: Optional[Dict[str, Any]] = None
-    
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class AzureChatCompletionResponse(BaseModel):
     """Azure chat completion response."""
-    
+
     id: str
     object: str
     created: int
@@ -85,10 +86,10 @@ class AzureChatCompletionResponse(BaseModel):
 
 class ChatCompletions:
     """Chat completions API."""
-    
+
     def __init__(self, parent: 'TealAzureOpenAI'):
         self.parent = parent
-    
+
     async def create(self, **kwargs) -> AzureChatCompletionResponse:
         """
         Create a chat completion with security and cost tracking.
@@ -107,10 +108,10 @@ class ChatCompletions:
 
 class DeploymentsChatCompletions:
     """Deployments chat completions API (Azure-specific)."""
-    
+
     def __init__(self, parent: 'TealAzureOpenAI'):
         self.parent = parent
-    
+
     async def create(self, **kwargs) -> AzureChatCompletionResponse:
         """
         Create a chat completion with security and cost tracking.
@@ -129,10 +130,10 @@ class DeploymentsChatCompletions:
 
 class DeploymentsChat:
     """Deployments chat API."""
-    
+
     def __init__(self, parent: 'TealAzureOpenAI'):
         self.parent = parent
-    
+
     @property
     def completions(self) -> DeploymentsChatCompletions:
         """Access deployments chat completions API."""
@@ -141,10 +142,10 @@ class DeploymentsChat:
 
 class Deployments:
     """Deployments API (Azure-specific)."""
-    
+
     def __init__(self, parent: 'TealAzureOpenAI'):
         self.parent = parent
-    
+
     @property
     def chat(self) -> DeploymentsChat:
         """Access deployments chat API."""
@@ -153,10 +154,10 @@ class Deployments:
 
 class Chat:
     """Chat API."""
-    
+
     def __init__(self, parent: 'TealAzureOpenAI'):
         self.parent = parent
-    
+
     @property
     def completions(self) -> ChatCompletions:
         """Access chat completions API."""
@@ -206,7 +207,7 @@ class TealAzureOpenAI:
         )
         ```
     """
-    
+
     def __init__(self, config: TealAzureOpenAIConfig):
         """
         Initialize TealAzureOpenAI client.
@@ -215,7 +216,7 @@ class TealAzureOpenAI:
             config: Configuration for the guarded client
         """
         self.config = config
-        
+
         # Initialize Azure OpenAI client
         # Note: Azure AD token authentication requires azure-identity package
         # For now, we use API key authentication
@@ -224,22 +225,22 @@ class TealAzureOpenAI:
             azure_endpoint=config.endpoint,
             api_version=config.api_version
         )
-        
+
         self.guardrail_engine = config.guardrail_engine
         self.cost_tracker = config.cost_tracker
         self.budget_manager = config.budget_manager
         self.cost_storage = config.cost_storage
-    
+
     @property
     def chat(self) -> Chat:
         """Access chat API."""
         return Chat(self)
-    
+
     @property
     def deployments(self) -> Deployments:
         """Access deployments API (Azure-specific)."""
         return Deployments(self)
-    
+
     def map_deployment_to_model(self, deployment: str) -> str:
         """
         Map Azure deployment name to OpenAI model name for pricing.
@@ -255,7 +256,7 @@ class TealAzureOpenAI:
         """
         # Common Azure deployment naming patterns
         lower_deployment = deployment.lower()
-        
+
         # GPT-4 variants
         if 'gpt-4-32k' in lower_deployment or 'gpt4-32k' in lower_deployment:
             return 'gpt-4-32k'
@@ -263,16 +264,16 @@ class TealAzureOpenAI:
             return 'gpt-4-turbo'
         if 'gpt-4' in lower_deployment or 'gpt4' in lower_deployment:
             return 'gpt-4'
-        
+
         # GPT-3.5 variants
         if 'gpt-35-turbo-16k' in lower_deployment or 'gpt-3.5-turbo-16k' in lower_deployment:
             return 'gpt-3.5-turbo-16k'
         if 'gpt-35-turbo' in lower_deployment or 'gpt-3.5-turbo' in lower_deployment:
             return 'gpt-3.5-turbo'
-        
+
         # Default to gpt-3.5-turbo if unknown
         return 'gpt-3.5-turbo'
-    
+
     async def _create_chat_completion(self, **kwargs) -> AzureChatCompletionResponse:
         """
         Internal method to create a chat completion with security and cost tracking.
@@ -289,12 +290,12 @@ class TealAzureOpenAI:
         request_id = generate_id()
         agent_id = self.config.agent_id
         security = SecurityMetadata()
-        
+
         # Get deployment name (required for Azure)
         deployment = kwargs.get('deployment')
         if not deployment:
             raise ValueError("deployment parameter is required for Azure OpenAI")
-        
+
         try:
             # 1. Run input guardrails
             if self.config.enable_guardrails and self.guardrail_engine:
@@ -304,26 +305,26 @@ class TealAzureOpenAI:
                 )
                 guardrail_result = await self.guardrail_engine.execute(user_messages)
                 security.guardrail_result = guardrail_result
-                
+
                 if not guardrail_result.passed:
                     failed = ', '.join(guardrail_result.get_failed_guardrails())
                     raise ValueError(
                         f"Guardrail check failed: {failed} "
                         f"(Risk: {guardrail_result.max_risk_score})"
                     )
-            
+
             # 2. Estimate cost and check budget
             if self.config.enable_cost_tracking and self.cost_tracker:
                 # Map deployment to model for pricing
                 model = self.map_deployment_to_model(deployment)
-                
+
                 # Estimate tokens (rough approximation: 4 chars = 1 token)
                 input_text = '\n'.join(
                     m.get('content', '') for m in kwargs.get('messages', [])
                 )
                 estimated_input_tokens = len(input_text) // 4
                 estimated_output_tokens = kwargs.get('max_tokens', 500)
-                
+
                 estimate = self.cost_tracker.estimate_cost(
                     model,
                     TokenUsage(
@@ -333,43 +334,43 @@ class TealAzureOpenAI:
                     ),
                     'openai'  # Azure uses OpenAI pricing
                 )
-                
+
                 if self.budget_manager:
                     budget_check = await self.budget_manager.check_budget(
                         agent_id, estimate.estimated_cost
                     )
                     security.budget_check = budget_check.dict()
-                    
+
                     if not budget_check.allowed:
                         raise ValueError(
                             f"Budget exceeded: {budget_check.blocked_by.name} "
                             f"(Limit: {budget_check.blocked_by.limit})"
                         )
-            
+
             # 3. Make actual API call
             # Azure OpenAI uses 'model' parameter instead of 'deployment' in the SDK
             api_kwargs = {**kwargs}
             api_kwargs['model'] = api_kwargs.pop('deployment')
-            
+
             response = await self.client.chat.completions.create(**api_kwargs)
-            
+
             # 4. Run output guardrails
             if self.config.enable_guardrails and self.guardrail_engine:
                 assistant_message = response.choices[0].message.content
                 output_result = await self.guardrail_engine.execute(assistant_message)
-                
+
                 if not output_result.passed:
                     failed = ', '.join(output_result.get_failed_guardrails())
                     raise ValueError(
                         f"Output guardrail check failed: {failed} "
                         f"(Risk: {output_result.max_risk_score})"
                     )
-            
+
             # 5. Track actual cost
             if self.config.enable_cost_tracking and self.cost_tracker:
                 # Map deployment to model for pricing
                 model = self.map_deployment_to_model(deployment)
-                
+
                 cost_record = self.cost_tracker.calculate_actual_cost(
                     request_id,
                     agent_id,
@@ -382,13 +383,13 @@ class TealAzureOpenAI:
                     'openai'  # Azure uses OpenAI pricing
                 )
                 security.cost_record = cost_record
-                
+
                 if self.cost_storage:
                     await self.cost_storage.store(cost_record)
-                
+
                 if self.budget_manager:
                     await self.budget_manager.record_cost(cost_record)
-            
+
             # 6. Return response with security metadata
             return AzureChatCompletionResponse(
                 id=response.id,
@@ -413,7 +414,7 @@ class TealAzureOpenAI:
                 },
                 security=security
             )
-        
+
         except Exception as e:
             if isinstance(e, ValueError):
                 raise

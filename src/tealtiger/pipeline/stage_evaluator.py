@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 from .errors import ModuleTimeoutError
 from .types import ACTION_SEVERITY, ModuleEvalDetail, PipelineStage
-
 
 # ---------------------------------------------------------------------------
 # Protocols

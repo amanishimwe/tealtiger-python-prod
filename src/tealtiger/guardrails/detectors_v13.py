@@ -12,8 +12,7 @@ Requirements: 12.1, 12.2
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, TypedDict
-
+from typing import List, Optional, TypedDict
 
 __all__ = [
     "detect_encoded_output",

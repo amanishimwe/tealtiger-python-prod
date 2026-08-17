@@ -60,11 +60,11 @@ def resolve_policy_mode(
     # Check policy-specific override (highest priority)
     if policy_id in mode_config.policy:
         return mode_config.policy[policy_id]
-    
+
     # Check environment-specific override
     if environment and environment in mode_config.environment:
         return mode_config.environment[environment]
-    
+
     # Fall back to global default
     return mode_config.default
 
@@ -81,14 +81,14 @@ def calculate_risk_score(allowed: bool, triggered_policies: List[str]) -> int:
     """
     if allowed:
         return 0  # No risk if allowed
-    
+
     # Base risk score for violations
     risk_score = 50
-    
+
     # Increase risk based on number of triggered policies
     triggered_count = len(triggered_policies)
     risk_score += min(triggered_count * 10, 40)
-    
+
     # Check for high-risk policy violations
     high_risk_patterns = [
         "tools.file_delete",
@@ -97,11 +97,11 @@ def calculate_risk_score(allowed: bool, triggered_policies: List[str]) -> int:
         "codeExecution.blockedFunctions",
         "codeExecution.blockedPatterns",
     ]
-    
+
     for policy in triggered_policies:
         if any(pattern in policy for pattern in high_risk_patterns):
             risk_score = min(risk_score + 20, 100)
-    
+
     return min(max(risk_score, 0), 100)
 
 
@@ -118,9 +118,9 @@ def determine_reason_codes(allowed: bool, triggered_policies: List[str], reason:
     """
     if allowed:
         return [ReasonCode.POLICY_COMPLIANT]
-    
+
     codes: List[ReasonCode] = [ReasonCode.POLICY_VIOLATION]
-    
+
     # Map triggered policies to reason codes
     for policy in triggered_policies:
         if "tools" in policy:
@@ -135,7 +135,7 @@ def determine_reason_codes(allowed: bool, triggered_policies: List[str], reason:
             codes.append(ReasonCode.UNSAFE_CODE_DETECTED)
         elif "behavioral.costLimit" in policy:
             codes.append(ReasonCode.COST_BUDGET_EXCEEDED)
-    
+
     # Remove duplicates while preserving order
     seen = set()
     unique_codes = []
@@ -143,7 +143,7 @@ def determine_reason_codes(allowed: bool, triggered_policies: List[str], reason:
         if code not in seen:
             seen.add(code)
             unique_codes.append(code)
-    
+
     return unique_codes
 
 
@@ -192,7 +192,7 @@ class TealEngine:
         >>> print(f"Action: {decision.action}")
         >>> print(f"Risk Score: {decision.risk_score}")
     """
-    
+
     def __init__(
         self,
         policies: Dict[str, Any],
@@ -216,10 +216,10 @@ class TealEngine:
         self.cache_enabled = cache_enabled
         self.cache_max_size = cache_max_size
         self.component_versions = get_component_versions()
-        
+
         # Validate mode configuration
         self._validate_mode_config()
-    
+
     def _validate_mode_config(self) -> None:
         """Validate mode configuration.
         
@@ -229,17 +229,17 @@ class TealEngine:
         # Validate default mode
         if not isinstance(self.mode_config.default, PolicyMode):
             raise ValueError(f"Invalid default mode: {self.mode_config.default}")
-        
+
         # Validate environment modes
         for env, mode in self.mode_config.environment.items():
             if not isinstance(mode, PolicyMode):
                 raise ValueError(f"Invalid mode for environment '{env}': {mode}")
-        
+
         # Validate policy modes
         for policy_id, mode in self.mode_config.policy.items():
             if not isinstance(mode, PolicyMode):
                 raise ValueError(f"Invalid mode for policy '{policy_id}': {mode}")
-    
+
     def evaluate_with_mode(
         self,
         context: Dict[str, Any],
@@ -255,20 +255,20 @@ class TealEngine:
             Decision object with action, reason_codes, risk_score, and metadata
         """
         start_time = time.time()
-        
+
         # Ensure we have an execution context with correlation_id
         exec_context = execution_context or ContextManager.create_context()
-        
+
         # Resolve the effective mode for this policy
         policy_id = get_policy_id_from_context(context)
         environment = exec_context.environment if exec_context else None
-        
+
         effective_mode = resolve_policy_mode(
             policy_id=policy_id,
             mode_config=self.mode_config,
             environment=environment,
         )
-        
+
         # REPORT_ONLY mode: Always allow without evaluating policies
         if effective_mode == PolicyMode.REPORT_ONLY:
             metadata: Dict[str, Any] = {
@@ -277,7 +277,7 @@ class TealEngine:
                 "triggered_policies": [],
                 "evaluation_performed": False,
             }
-            
+
             # Add optional context fields
             if exec_context.tenant_id:
                 metadata["tenant_id"] = exec_context.tenant_id
@@ -287,7 +287,7 @@ class TealEngine:
                 metadata["environment"] = exec_context.environment
             if exec_context.agent_purpose:
                 metadata["agent_purpose"] = exec_context.agent_purpose
-            
+
             decision = Decision(
                 action=DecisionAction.ALLOW,
                 reason_codes=[ReasonCode.REPORT_ONLY_MODE],
@@ -300,7 +300,7 @@ class TealEngine:
                 reason="Request allowed in REPORT_ONLY mode (policy evaluation skipped)",
                 metadata=metadata,
             )
-            
+
             # Add optional fields
             if exec_context.trace_id:
                 decision.trace_id = exec_context.trace_id
@@ -314,25 +314,25 @@ class TealEngine:
                 decision.parent_span_id = exec_context.parent_span_id
             if context.get("metadata", {}).get("provider"):
                 decision.provider = context["metadata"]["provider"]
-            
+
             return decision
-        
+
         # Evaluate policies (simplified - in real implementation, use PolicyEvaluator)
         eval_result = self._evaluate_policies(context)
-        
+
         # Calculate risk score
         risk_score = calculate_risk_score(
             eval_result["allowed"],
             eval_result["triggered_policies"],
         )
-        
+
         # Determine reason codes
         reason_codes = determine_reason_codes(
             eval_result["allowed"],
             eval_result["triggered_policies"],
             eval_result.get("reason"),
         )
-        
+
         # MONITOR mode: Always allow but log violations
         if effective_mode == PolicyMode.MONITOR:
             metadata = {
@@ -341,7 +341,7 @@ class TealEngine:
                 "triggered_policies": eval_result["triggered_policies"],
                 "evaluation_performed": True,
             }
-            
+
             # Add optional context fields
             if exec_context.tenant_id:
                 metadata["tenant_id"] = exec_context.tenant_id
@@ -351,7 +351,7 @@ class TealEngine:
                 metadata["environment"] = exec_context.environment
             if exec_context.agent_purpose:
                 metadata["agent_purpose"] = exec_context.agent_purpose
-            
+
             decision = Decision(
                 action=DecisionAction.ALLOW,
                 reason_codes=(
@@ -372,7 +372,7 @@ class TealEngine:
                 ),
                 metadata=metadata,
             )
-            
+
             # Add optional fields
             if exec_context.trace_id:
                 decision.trace_id = exec_context.trace_id
@@ -386,9 +386,9 @@ class TealEngine:
                 decision.parent_span_id = exec_context.parent_span_id
             if context.get("metadata", {}).get("provider"):
                 decision.provider = context["metadata"]["provider"]
-            
+
             return decision
-        
+
         # ENFORCE mode: Block violations, allow compliant requests
         if effective_mode == PolicyMode.ENFORCE:
             metadata = {
@@ -397,7 +397,7 @@ class TealEngine:
                 "triggered_policies": eval_result["triggered_policies"],
                 "evaluation_performed": True,
             }
-            
+
             # Add optional context fields
             if exec_context.tenant_id:
                 metadata["tenant_id"] = exec_context.tenant_id
@@ -407,7 +407,7 @@ class TealEngine:
                 metadata["environment"] = exec_context.environment
             if exec_context.agent_purpose:
                 metadata["agent_purpose"] = exec_context.agent_purpose
-            
+
             decision = Decision(
                 action=DecisionAction.ALLOW if eval_result["allowed"] else DecisionAction.DENY,
                 reason_codes=(
@@ -428,7 +428,7 @@ class TealEngine:
                 ),
                 metadata=metadata,
             )
-            
+
             # Add optional fields
             if exec_context.trace_id:
                 decision.trace_id = exec_context.trace_id
@@ -442,12 +442,12 @@ class TealEngine:
                 decision.parent_span_id = exec_context.parent_span_id
             if context.get("metadata", {}).get("provider"):
                 decision.provider = context["metadata"]["provider"]
-            
+
             return decision
-        
+
         # Fallback (should never reach here due to mode validation)
         raise ValueError(f"Invalid policy mode: {effective_mode}")
-    
+
     def _evaluate_policies(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Evaluate policies against request context (simplified implementation).
         
@@ -464,7 +464,7 @@ class TealEngine:
             "reason": None,
             "triggered_policies": [],
         }
-    
+
     def get_mode_config(self) -> ModeConfig:
         """Get the current mode configuration.
         

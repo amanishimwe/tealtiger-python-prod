@@ -17,7 +17,7 @@ Usage:
     )
 
     agent = Agent(
-        model="gemini-2.0-flash",
+        model="gemini-3.6-flash",
         tools=[search_tool, code_tool],
         before_tool_callback=governance.before_tool,
         after_tool_callback=governance.after_tool,
@@ -27,9 +27,14 @@ Usage:
 from __future__ import annotations
 
 import re
-import uuid
 import time
-from typing import Any, Dict, List
+import uuid
+from typing import Any, Dict, List, Optional, Tuple
+
+from tealtiger.cost.pricing import get_model_pricing
+
+# action, reason_codes, risk_score
+_EvalState = Tuple[str, List[str], int]
 
 # PII patterns
 _PII_PATTERNS = {
@@ -61,6 +66,8 @@ class TealTigerCallback:
         mode: "OBSERVE", "MONITOR", or "ENFORCE".
         agent_id: Agent identifier for audit correlation.
         on_decision: Optional callback invoked with each governance decision.
+        model: Gemini 3.6 flash is default model.
+        cost_per_tool_call: Fallback USD cost when pricing/tokens is not available for the model.
     """
 
     def __init__(
@@ -69,14 +76,116 @@ class TealTigerCallback:
         mode: str = "OBSERVE",
         agent_id: str = None,
         on_decision=None,
+        model: str = "gemini-3.6-flash",
+        cost_per_tool_call: float = 0.0015,
     ):
         self.policies = policies or []
         self.mode = mode.upper()
         self.agent_id = agent_id or f"adk-agent-{str(uuid.uuid4())[:8]}"
         self.on_decision = on_decision
+        self.model = model
+        self.cost_per_tool_call = cost_per_tool_call
         self._decisions: List[Dict[str, Any]] = []
         self._cumulative_cost: float = 0.0
         self._frozen: bool = False
+
+    @staticmethod
+    def _approx_tokens(payload: Any) -> int:
+        """Rough token estimate (~4 chars per token)."""
+        # TODO: use actual token counts when ADK exposes them
+        return max(1, len(str(payload)) // 4)
+
+    def _estimate_tool_cost(
+        self, args: Optional[Any] = None, result: Optional[Any] = None
+    ) -> float:
+        """Estimate USD cost for one allowed tool call.
+        Used model pricing if available; otherwise cost_per_tool_call.
+        """
+        pricing = get_model_pricing(self.model, provider="google")
+        if pricing is None:
+            return self.cost_per_tool_call
+
+        # args available in before_tool; result only after_tool — keep 500 fallback
+        estimated_input_tokens = self._approx_tokens(args) if args is not None else 500
+        estimated_output_tokens = self._approx_tokens(result) if result is not None else 500
+
+        input_cost = (estimated_input_tokens / 1000) * pricing.input_cost_per_1k
+        output_cost = (estimated_output_tokens / 1000) * pricing.output_cost_per_1k
+        return input_cost + output_cost
+
+    def _check_freeze(self, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if self._frozen:
+            return "DENY", reason_codes + ["AGENT_FROZEN"], 100
+        return action, reason_codes, risk_score
+
+    def _check_tool_allowlist(self, tool_name: str, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        for policy in self.policies:
+            if policy.get("type") != "tool_allowlist":
+                continue
+            allowed = policy.get("allowed", [])
+            if not any(
+                tool_name == p or (p.endswith("*") and tool_name.startswith(p[:-1]))
+                for p in allowed
+            ):
+                return "DENY", reason_codes + ["TOOL_NOT_ALLOWED"], max(risk_score, 80)
+        return action, reason_codes, risk_score
+
+    def _check_pii(self, args: Any, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        args_text = str(args)
+        for policy in self.policies:
+            if policy.get("type") != "pii_block":
+                continue
+            categories = policy.get("categories", list(_PII_PATTERNS.keys()))
+            denied = False
+            for cat in categories:
+                pattern = _PII_PATTERNS.get(cat)
+                if pattern and pattern.search(args_text):
+                    action = "DENY"
+                    reason_codes = reason_codes + [f"PII_DETECTED:{cat}"]
+                    risk_score = max(risk_score, 90)
+                    denied = True
+            if denied:
+                break
+        return action, reason_codes, risk_score
+
+    def _check_secrets(self, args: Any, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        args_text = str(args)
+        for policy in self.policies:
+            if policy.get("type") != "secret_detection":
+                continue
+            if any(p.search(args_text) for p in _SECRET_PATTERNS):
+                return "DENY", reason_codes + ["SECRET_DETECTED"], max(risk_score, 95)
+        return action, reason_codes, risk_score
+
+    def _check_cost_limit(self, state: _EvalState) -> _EvalState:
+        action, reason_codes, risk_score = state
+        if action != "ALLOW":
+            return state
+        for policy in self.policies:
+            if policy.get("type") != "cost_limit":
+                continue
+            limit = policy.get("max_per_session", float("inf"))
+            if self._cumulative_cost >= limit:
+                return "DENY", reason_codes + ["BUDGET_EXCEEDED"], max(risk_score, 70)
+        return action, reason_codes, risk_score
+
+    def _evaluate_policies(self, tool_name: str, args: Any) -> _EvalState:
+        state: _EvalState = ("ALLOW", [], 0)
+        state = self._check_freeze(state)
+        state = self._check_tool_allowlist(tool_name, state)
+        state = self._check_pii(args, state)
+        state = self._check_secrets(args, state)
+        return self._check_cost_limit(state)
 
     def before_tool(self, callback_context, tool, args, tool_context=None):
         """Before-tool callback for Google ADK.
@@ -97,69 +206,13 @@ class TealTigerCallback:
         tool_name = getattr(tool, "name", str(tool)) if not isinstance(tool, str) else tool
         correlation_id = str(uuid.uuid4())
 
-        # Evaluate policies
-        action = "ALLOW"
-        reason_codes = []
-        risk_score = 0
-
-        # Check freeze
-        if self._frozen:
-            action = "DENY"
-            reason_codes.append("AGENT_FROZEN")
-            risk_score = 100
-
-        # Tool allowlist
-        if action == "ALLOW":
-            for policy in self.policies:
-                if policy.get("type") == "tool_allowlist":
-                    allowed = policy.get("allowed", [])
-                    if not any(
-                        tool_name == p or (p.endswith("*") and tool_name.startswith(p[:-1]))
-                        for p in allowed
-                    ):
-                        action = "DENY"
-                        reason_codes.append("TOOL_NOT_ALLOWED")
-                        risk_score = max(risk_score, 80)
-                        break
-
-        # PII detection
-        if action == "ALLOW":
-            args_text = str(args)
-            for policy in self.policies:
-                if policy.get("type") == "pii_block":
-                    categories = policy.get("categories", list(_PII_PATTERNS.keys()))
-                    for cat in categories:
-                        pattern = _PII_PATTERNS.get(cat)
-                        if pattern and pattern.search(args_text):
-                            action = "DENY"
-                            reason_codes.append(f"PII_DETECTED:{cat}")
-                            risk_score = max(risk_score, 90)
-                    if action == "DENY":
-                        break
-
-        # Secret detection
-        if action == "ALLOW":
-            args_text = str(args)
-            for policy in self.policies:
-                if policy.get("type") == "secret_detection":
-                    if any(p.search(args_text) for p in _SECRET_PATTERNS):
-                        action = "DENY"
-                        reason_codes.append("SECRET_DETECTED")
-                        risk_score = max(risk_score, 95)
-                        break
-
-        # Cost limit
-        if action == "ALLOW":
-            for policy in self.policies:
-                if policy.get("type") == "cost_limit":
-                    limit = policy.get("max_per_session", float("inf"))
-                    if self._cumulative_cost >= limit:
-                        action = "DENY"
-                        reason_codes.append("BUDGET_EXCEEDED")
-                        risk_score = max(risk_score, 70)
-                        break
+        action, reason_codes, risk_score = self._evaluate_policies(tool_name, args)
 
         eval_time = (time.perf_counter() - start_time) * 1000
+        # Track cost for allowed actions
+        cost = self._estimate_tool_cost(args=args, result=None) if action == "ALLOW" else 0.0
+        if action == "ALLOW":
+            self._cumulative_cost += cost
 
         # Record decision
         decision = {
@@ -172,17 +225,13 @@ class TealTigerCallback:
             "reason_codes": reason_codes or (["POLICY_ALLOW"] if action == "ALLOW" else []),
             "risk_score": risk_score,
             "evaluation_time_ms": eval_time,
-            "cost_tracked": 0.002 if action == "ALLOW" else 0.0,
+            "cost_tracked": cost,
             "cumulative_cost": self._cumulative_cost,
         }
         self._decisions.append(decision)
 
         if self.on_decision:
             self.on_decision(decision)
-
-        # Track cost for allowed actions
-        if action == "ALLOW":
-            self._cumulative_cost += 0.002
 
         # Mode-based behavior
         if self.mode == "ENFORCE" and action == "DENY":

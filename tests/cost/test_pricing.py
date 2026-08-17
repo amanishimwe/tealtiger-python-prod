@@ -20,6 +20,12 @@ MISTRAL_PRICING = [
     # ("open-mistral-nemo", 0.00015, 0.00015),
     # ("codestral-latest", 0.0003, 0.0009),
 ]
+GEMINI_PRICING = [
+    ("gemini-2.5-flash", 0.0003, 0.0025),
+    ("gemini-2.5-pro", 0.00125, 0.01),
+    ("gemini-3.5-flash", 0.0015, 0.009),
+    ("gemini-3.6-flash", 0.0015, 0.0075),
+]
 
 
 @pytest.mark.parametrize("model,input_rate,output_rate", MISTRAL_PRICING)
@@ -40,3 +46,22 @@ def test_mistral_large_latest_cost_calculation():
     assert estimate.breakdown.input_cost == pytest.approx(0.0005)
     assert estimate.breakdown.output_cost == pytest.approx(0.0015)
     assert estimate.estimated_cost == pytest.approx(0.002)
+
+
+@pytest.mark.parametrize("model,input_rate,output_rate", GEMINI_PRICING)
+def test_gemini_pricing_lookup(model, input_rate, output_rate):
+    pricing = get_model_pricing(model)
+    assert pricing is not None
+    assert pricing.provider == "google"
+    assert pricing.input_cost_per_1k == input_rate
+    assert pricing.output_cost_per_1k == output_rate
+
+
+def test_gemini_2_5_pro_cost_calculation():
+    """Cost for 1000 in + 1000 out on gemini-2.5-pro."""
+    tracker = CostTracker()
+    tokens = TokenUsage(input_tokens=1000, output_tokens=1000, total_tokens=2000)
+    estimate = tracker.estimate_cost("gemini-2.5-pro", tokens)
+    assert estimate.breakdown.input_cost == pytest.approx(0.00125)
+    assert estimate.breakdown.output_cost == pytest.approx(0.01)
+    assert estimate.estimated_cost == pytest.approx(0.01125)

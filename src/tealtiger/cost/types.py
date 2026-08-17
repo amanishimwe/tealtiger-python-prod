@@ -5,9 +5,9 @@ This module defines Pydantic models for cost tracking, budget management,
 and cost analytics in the TealTiger SDK.
 """
 
-from pydantic import BaseModel, Field
-from typing import Literal, Optional, Dict, Any, List
-from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel
 
 # Type aliases for literals
 ModelProvider = Literal['openai', 'anthropic', 'azure-openai', 'google', 'bedrock', 'cohere', 'mistral', 'custom']

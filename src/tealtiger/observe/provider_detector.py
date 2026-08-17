@@ -14,8 +14,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from .errors import UnsupportedProviderError
-from .types import ProviderSignature, SupportedProvider, ToolCallInfo
-
+from .types import ProviderSignature, ToolCallInfo
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -13,11 +13,10 @@ This is the Python port of observe-audit.ts from the TypeScript SDK.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-
-import sys
 
 
 @dataclass

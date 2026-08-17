@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from typing import List, Optional
 
-from .types import BaselineSample, BaselineResult, BaselineStats, PercentileStats
+from .types import BaselineResult, BaselineSample, BaselineStats, PercentileStats
 
 
 def _compute_percentiles(sorted_values: List[float]) -> PercentileStats:

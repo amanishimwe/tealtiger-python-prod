@@ -28,6 +28,10 @@ Usage:
     )
 """
 
+from .counter_manager import CounterManager
+from .crypto_service import CryptoService
+from .errors import SealConfigurationError
+from .governance_engine import GovernanceEngineV21, GovernanceEngineV21Options
 from .types import (
     GENESIS_RECEIPT_REF,
     ContiguityFailure,
@@ -38,10 +42,6 @@ from .types import (
     ValidationFailure,
     ValidationSuccess,
 )
-from .errors import SealConfigurationError
-from .crypto_service import CryptoService
-from .counter_manager import CounterManager
-from .governance_engine import GovernanceEngineV21, GovernanceEngineV21Options
 from .validate_governance_decision import validate_governance_decision
 from .verify_contiguity import verify_contiguity
 

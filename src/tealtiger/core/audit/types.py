@@ -5,14 +5,14 @@ Defines the versioned audit event schema with security-by-default redaction.
 Part of TealTiger v1.1.x - Enterprise Adoption Features (P0.4)
 """
 
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel, Field, field_validator
-import re
 
-from ..engine.types import PolicyMode, DecisionAction, ReasonCode
-
+from ..engine.types import DecisionAction, PolicyMode, ReasonCode
 
 # Audit schema version
 # Incremented when breaking changes are made to the AuditEvent schema

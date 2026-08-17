@@ -19,7 +19,6 @@ from typing import Any, Dict, Optional
 
 from .counter_manager import CounterManager
 from .crypto_service import CryptoService
-from .errors import SealConfigurationError
 from .types import DecisionV21, GovernanceSeal
 
 

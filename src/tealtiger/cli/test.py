@@ -18,8 +18,8 @@ from typing import List, Optional
 
 import click
 
-from ..core.engine.testing import PolicyTester, PolicyTestSuite
 from ..core.engine.teal_engine import TealEngine
+from ..core.engine.testing import PolicyTester, PolicyTestSuite
 
 
 @click.command()

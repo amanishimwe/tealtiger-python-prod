@@ -20,7 +20,6 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional
 
-
 # ── Constants ────────────────────────────────────────────────────
 
 REASON_CODE_INJECTION = "TOOL_DESCRIPTION_INJECTION"

@@ -12,7 +12,6 @@ from typing import Any, Dict, Optional, Tuple
 
 from .types import CostBreakdownSummary, ObserveCostSummary, RequestCostResult
 
-
 # ---------------------------------------------------------------------------
 # Pricing table — per-1K-token rates (USD)
 # ---------------------------------------------------------------------------
